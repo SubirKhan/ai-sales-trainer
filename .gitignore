@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # dependencies
 /node_modules
 
@@ -21,3 +22,6 @@ yarn-error.log*
 
 # TypeScript cache
 *.tsbuildinfo
+=======
+node_modules/ 
+>>>>>>> 8fa50a7e (Fix: Added node_modules to .gitignore)
