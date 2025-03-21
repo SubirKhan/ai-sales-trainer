@@ -34,7 +34,7 @@ export default function Home() {
 
   const startVoice = () => {
     try {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) return alert('Speech recognition not supported');
 
       const recognition = new SpeechRecognition();
