@@ -8,6 +8,10 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
+<<<<<<< HEAD
+=======
+    "forceConsistentCasingInFileNames": true,
+>>>>>>> 6c0b7478 (Upgrade: Added roleplay mode, radar chart, feedback scoring, PDF export)
     "noEmit": true,
     "incremental": true,
     "esModuleInterop": true,
