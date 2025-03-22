@@ -21,3 +21,24 @@ yarn-error.log*
 
 # TypeScript cache
 *.tsbuildinfo
+<<<<<<< HEAD
+=======
+=======
+node_modules/ 
+<<<<<<< HEAD
+>>>>>>> 8fa50a7e (Fix: Added node_modules to .gitignore)
+=======
+".next/" 
+>>>>>>> eac6df44 (Fix: Added .next/ to .gitignore)
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+
+.env.local
+
+=======
+.env.local 
+>>>>>>> Stashed changes
+=======
+.env.local 
+>>>>>>> Stashed changes
+>>>>>>> a35ecbe0 (Fix: Resolved .gitignore merge conflict)
