@@ -50,13 +50,23 @@ export default function Home() {
   };
 
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: 20 }}>
-      <h1>AI Sales Trainer</h1>
-      <p>Choose tone:</p>
-      <select value={coachTone} onChange={(e) => setCoachTone(e.target.value)}>
+    <div style={{ maxWidth: 700, margin: '0 auto', padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
+      <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem' }}>AI Sales Trainer</h1>
+
+      <label style={{ fontWeight: '600' }}>Choose Tone:</label>
+      <select
+        value={coachTone}
+        onChange={(e) => setCoachTone(e.target.value)}
+        style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem' }}
+      >
         <option value="friendly">Friendly Mentor</option>
         <option value="tough">Tough Coach</option>
         <option value="peer">Peer-Level Trainer</option>
+        <option value="value">Value-Driven</option>
+        <option value="executive">Decision-Makers</option>
+        <option value="open">Open-Mindedness</option>
+        <option value="master">Best Salesman in the World</option>
+        <option value="novice">Complete New Person</option>
       </select>
 
       <textarea
@@ -64,20 +74,21 @@ export default function Home() {
         onChange={(e) => setPitch(e.target.value)}
         placeholder="Type or use voice to input your sales pitch..."
         rows={6}
-        style={{ width: '100%', marginTop: 10 }}
+        style={{ width: '100%', padding: '1rem', fontSize: '1rem', marginBottom: '1rem' }}
       />
-      <div style={{ marginTop: 10 }}>
-        <button onClick={handleSubmit} disabled={isLoading}>
+
+      <div style={{ display: 'flex', gap: '1rem' }}>
+        <button onClick={handleSubmit} disabled={isLoading} style={{ padding: '0.5rem 1rem' }}>
           {isLoading ? 'Analyzing...' : 'Submit Pitch'}
         </button>
-        <button onClick={startVoice} style={{ marginLeft: 10 }}>
+        <button onClick={startVoice} style={{ padding: '0.5rem 1rem' }}>
           Use Voice
         </button>
       </div>
 
       {feedback && (
-        <div style={{ marginTop: 20 }}>
-          <h3>Feedback</h3>
+        <div style={{ marginTop: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '6px' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Feedback</h3>
           <p><strong>Confidence:</strong> {feedback.confidence}</p>
           <p><strong>Clarity:</strong> {feedback.clarity}</p>
           <p><strong>Structure:</strong> {feedback.structure}</p>
