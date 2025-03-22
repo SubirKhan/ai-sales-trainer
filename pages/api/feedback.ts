@@ -23,9 +23,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       temperature: 0.7
     });
 
-    const reply = completion.choices[0]?.message?.content;
-    console.log("🧠 AI Response:", reply);
-    const jsonMatch = reply?.match(/\{[\s\S]*\}/);
+   const reply = completion.choices[0]?.message?.content;
+console.log("🧠 AI Response:", reply);
+
+const jsonMatch = reply?.match(/\{[\s\S]*\}/);
+console.log("📦 Matched JSON:", jsonMatch);
+      
     if (!jsonMatch) {
       return res.status(500).json({ error: 'Failed to parse structured feedback from AI response.' });
     }
