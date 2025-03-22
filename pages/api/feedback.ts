@@ -24,6 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const reply = completion.choices[0]?.message?.content;
+    console.log("🧠 AI Response:", reply);
     const jsonMatch = reply?.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return res.status(500).json({ error: 'Failed to parse structured feedback from AI response.' });
