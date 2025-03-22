@@ -24,4 +24,8 @@ yarn-error.log*
 *.tsbuildinfo
 =======
 node_modules/ 
+<<<<<<< HEAD
 >>>>>>> 8fa50a7e (Fix: Added node_modules to .gitignore)
+=======
+".next/" 
+>>>>>>> eac6df44 (Fix: Added .next/ to .gitignore)
