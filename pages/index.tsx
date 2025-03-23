@@ -11,6 +11,26 @@ const initialScores = {
   persuasiveness: 0
 };
 
+const toneOptions = [
+  { value: 'friendly', label: 'Friendly Mentor', icon: '🤝' },
+  { value: 'tough', label: 'Tough Coach', icon: '💪' },
+  { value: 'peer', label: 'Peer-Level Trainer', icon: '🧑‍🤝‍🧑' },
+  { value: 'closer', label: 'Closer', icon: '🎯' },
+  { value: 'best', label: 'Best Salesman in the World', icon: '🏆' }
+];
+
+const personaOptions = [
+  { value: 'new', label: 'Completely New Person', icon: '🆕' },
+  { value: 'decision', label: 'Decision Maker', icon: '🧠' },
+  { value: 'skeptical', label: 'Skeptical Prospect', icon: '🤨' },
+  { value: 'executive', label: 'Time-Crunched Executive', icon: '⌛' },
+  { value: 'budget', label: 'Budget-Conscious Buyer', icon: '💸' },
+  { value: 'technical', label: 'Technical Expert', icon: '🧑‍💻' },
+  { value: 'emotional', label: 'Emotional Buyer', icon: '❤️' },
+  { value: 'warm', label: 'Warm Lead', icon: '🔥' },
+  { value: 'competitor', label: 'Competitor (Fishing for Info)', icon: '🎣' }
+];
+
 export default function Home() {
   const [pitch, setPitch] = useState('');
   const [feedback, setFeedback] = useState(null);
@@ -22,7 +42,7 @@ export default function Home() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 1-10), strongestLine, weakestLine, and comments.`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 1-10), and comments.`;
       const userPrompt = `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
@@ -44,25 +64,6 @@ export default function Home() {
     setIsLoading(false);
   };
 
-  const exportToPDF = () => {
-    if (!feedback) return;
-    const doc = new jsPDF();
-    doc.setFont('helvetica');
-    doc.setFontSize(16);
-    doc.text('AI Sales Trainer Feedback', 20, 20);
-    doc.setFontSize(12);
-    doc.text(`Confidence: ${feedback.confidence}`, 20, 40);
-    doc.text(`Clarity: ${feedback.clarity}`, 20, 50);
-    doc.text(`Structure: ${feedback.structure}`, 20, 60);
-    doc.text(`Authenticity: ${feedback.authenticity}`, 20, 70);
-    doc.text(`Persuasiveness: ${feedback.persuasiveness}`, 20, 80);
-    doc.text(`Strongest Line: ${feedback.strongestLine || 'N/A'}`, 20, 95);
-    doc.text(`Weakest Line: ${feedback.weakestLine || 'N/A'}`, 20, 105);
-    doc.text('Comments:', 20, 120);
-    doc.text(feedback.comments || 'No comments provided.', 20, 130, { maxWidth: 170 });
-    doc.save('sales-feedback.pdf');
-  };
-
   const startVoice = () => {
     try {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -80,26 +81,6 @@ export default function Home() {
     }
   };
 
-  const toneOptions = [
-    { value: 'friendly', label: 'Friendly Mentor' },
-    { value: 'tough', label: 'Tough Coach' },
-    { value: 'peer', label: 'Peer-Level Trainer' },
-    { value: 'closer', label: 'Closer' },
-    { value: 'best', label: 'Best Salesman in the World' }
-  ];
-
-  const personaOptions = [
-    { value: 'new', label: 'Completely New Person' },
-    { value: 'decision', label: 'Decision Maker' },
-    { value: 'skeptical', label: 'Skeptical Prospect' },
-    { value: 'executive', label: 'Time-Crunched Executive' },
-    { value: 'budget', label: 'Budget-Conscious Buyer' },
-    { value: 'technical', label: 'Technical Expert' },
-    { value: 'emotional', label: 'Emotional Buyer' },
-    { value: 'warm', label: 'Warm Lead' },
-    { value: 'competitor', label: 'Competitor (Fishing for Info)' }
-  ];
-
   const radarData = feedback
     ? Object.entries(feedback)
         .filter(([key]) => initialScores.hasOwnProperty(key))
@@ -113,14 +94,14 @@ export default function Home() {
       <label style={{ fontWeight: 'bold' }}>Choose Feedback Tone:</label>
       <select value={coachTone} onChange={(e) => setCoachTone(e.target.value)} style={{ marginBottom: 20, padding: 6, width: '100%' }}>
         {toneOptions.map(option => (
-          <option key={option.value} value={option.value}>{option.label}</option>
+          <option key={option.value} value={option.value}>{option.icon} {option.label}</option>
         ))}
       </select>
 
       <label style={{ fontWeight: 'bold' }}>Who Are You Pitching To?</label>
       <select value={persona} onChange={(e) => setPersona(e.target.value)} style={{ marginBottom: 20, padding: 6, width: '100%' }}>
         {personaOptions.map(option => (
-          <option key={option.value} value={option.value}>{option.label}</option>
+          <option key={option.value} value={option.value}>{option.icon} {option.label}</option>
         ))}
       </select>
 
@@ -137,7 +118,6 @@ export default function Home() {
           {isLoading ? 'Analyzing...' : 'Submit Pitch'}
         </button>
         <button onClick={startVoice} style={{ padding: '10px 16px', borderRadius: 8 }}>Use Voice</button>
-        <button onClick={exportToPDF} style={{ padding: '10px 16px', borderRadius: 8 }}>Download PDF</button>
       </div>
 
       {feedback && (
@@ -148,8 +128,6 @@ export default function Home() {
           <p><strong>Structure:</strong> {feedback.structure}</p>
           <p><strong>Authenticity:</strong> {feedback.authenticity}</p>
           <p><strong>Persuasiveness:</strong> {feedback.persuasiveness}</p>
-          <p><strong>Strongest Line:</strong> {feedback.strongestLine}</p>
-          <p><strong>Weakest Line:</strong> {feedback.weakestLine}</p>
           <p><strong>Comments:</strong> {feedback.comments}</p>
 
           <div style={{ marginTop: 30, height: 300 }}>
