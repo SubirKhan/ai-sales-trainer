@@ -1,18 +1,27 @@
 import { useState, useRef } from 'react';
-import Head from 'next/head';
+import dynamic from 'next/dynamic';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } from 'recharts';
+
+const initialScores = {
+  confidence: 0,
+  clarity: 0,
+  structure: 0,
+  authenticity: 0,
+  persuasiveness: 0
+};
 
 export default function Home() {
   const [pitch, setPitch] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [coachTone, setCoachTone] = useState('friendly');
-  const [pitchPersona, setPitchPersona] = useState('new-person');
+  const [persona, setPersona] = useState('new');
   const recognitionRef = useRef(null);
 
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch targeted at a ${pitchPersona} and return a JSON object with confidence, clarity, structure (rated 1-10), and comments.`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 1-10), and comments.`;
       const userPrompt = `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
@@ -51,125 +60,88 @@ export default function Home() {
     }
   };
 
+  const toneOptions = [
+    { value: 'friendly', label: 'Friendly Mentor' },
+    { value: 'tough', label: 'Tough Coach' },
+    { value: 'peer', label: 'Peer-Level Trainer' },
+    { value: 'closer', label: 'Closer' },
+    { value: 'best', label: 'Best Salesman in the World' }
+  ];
+
+  const personaOptions = [
+    { value: 'new', label: 'Completely New Person' },
+    { value: 'decision', label: 'Decision Maker' },
+    { value: 'skeptical', label: 'Skeptical Prospect' },
+    { value: 'executive', label: 'Time-Crunched Executive' },
+    { value: 'budget', label: 'Budget-Conscious Buyer' },
+    { value: 'technical', label: 'Technical Expert' },
+    { value: 'emotional', label: 'Emotional Buyer' },
+    { value: 'warm', label: 'Warm Lead' },
+    { value: 'competitor', label: 'Competitor (Fishing for Info)' }
+  ];
+
+  const radarData = feedback
+    ? Object.entries(feedback)
+        .filter(([key]) => initialScores.hasOwnProperty(key))
+        .map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }))
+    : [];
+
   return (
-    <div>
-      <Head>
-        <link href="https://fonts.googleapis.com/css2?family=Nunito&display=swap" rel="stylesheet" />
-      </Head>
-      <div
-        style={{
-          fontFamily: 'Nunito, sans-serif',
-          maxWidth: 600,
-          margin: '0 auto',
-          padding: '2rem 1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          backgroundColor: '#fffaf5',
-          color: '#333',
-          borderRadius: '1rem',
-          boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
-        }}
-      >
-        <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>AI Sales Trainer</h1>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 800, margin: '0 auto', padding: 30, backgroundColor: '#faf8f5', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+      <h1 style={{ fontSize: '2.2rem', marginBottom: '1rem' }}>AI Sales Trainer</h1>
 
-        <label style={{ marginBottom: 4 }}>Choose Feedback Tone:</label>
-        <select
-          value={coachTone}
-          onChange={(e) => setCoachTone(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            borderRadius: '0.5rem',
-            marginBottom: '1rem',
-            border: '1px solid #ccc',
-          }}
-        >
-          <option value="friendly">Friendly Mentor</option>
-          <option value="tough">Tough Coach</option>
-          <option value="peer">Peer-Level Trainer</option>
-          <option value="value">Value-Driven</option>
-          <option value="decision">Best Salesman in the World</option>
-          <option value="openness">Open-Mindedness</option>
-          <option value="closer">Closer</option>
-        </select>
+      <label style={{ fontWeight: 'bold' }}>Choose Feedback Tone:</label>
+      <select value={coachTone} onChange={(e) => setCoachTone(e.target.value)} style={{ marginBottom: 20, padding: 6, width: '100%' }}>
+        {toneOptions.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
 
-        <label style={{ marginBottom: 4 }}>Who Are You Pitching To?</label>
-        <select
-          value={pitchPersona}
-          onChange={(e) => setPitchPersona(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '0.5rem',
-            borderRadius: '0.5rem',
-            marginBottom: '1rem',
-            border: '1px solid #ccc',
-          }}
-        >
-          <option value="new-person">Completely New Person</option>
-          <option value="decision-maker">Decision Maker</option>
-          <option value="skeptical">Skeptical Prospect</option>
-          <option value="time-crunched">Time-Crunched Executive</option>
-          <option value="budget">Budget-Conscious Buyer</option>
-          <option value="technical">Technical Expert</option>
-          <option value="emotional">Emotional Buyer</option>
-          <option value="warm">Warm Lead</option>
-          <option value="competitor">Competitor</option>
-        </select>
+      <label style={{ fontWeight: 'bold' }}>Who Are You Pitching To?</label>
+      <select value={persona} onChange={(e) => setPersona(e.target.value)} style={{ marginBottom: 20, padding: 6, width: '100%' }}>
+        {personaOptions.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
 
-        <textarea
-          value={pitch}
-          onChange={(e) => setPitch(e.target.value)}
-          placeholder="Type or use voice to input your sales pitch..."
-          rows={6}
-          style={{
-            width: '100%',
-            borderRadius: '0.5rem',
-            padding: '1rem',
-            border: '1px solid #ccc',
-            marginBottom: '1rem',
-            fontFamily: 'inherit',
-          }}
-        />
+      <textarea
+        value={pitch}
+        onChange={(e) => setPitch(e.target.value)}
+        placeholder="Type or use voice to input your sales pitch..."
+        rows={6}
+        style={{ width: '100%', marginBottom: 10, borderRadius: 10, padding: 10, fontSize: '1rem' }}
+      />
 
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <button
-            onClick={handleSubmit}
-            disabled={isLoading}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              backgroundColor: '#ffe0b3',
-              cursor: 'pointer',
-            }}
-          >
-            {isLoading ? 'Analyzing...' : 'Submit Pitch'}
-          </button>
-          <button
-            onClick={startVoice}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              backgroundColor: '#ffd9cc',
-              cursor: 'pointer',
-            }}
-          >
-            Use Voice
-          </button>
-        </div>
-
-        {feedback && (
-          <div style={{ marginTop: 20 }}>
-            <h3>Feedback</h3>
-            <p><strong>Confidence:</strong> {feedback.confidence}</p>
-            <p><strong>Clarity:</strong> {feedback.clarity}</p>
-            <p><strong>Structure:</strong> {feedback.structure}</p>
-            <p><strong>Comments:</strong> {feedback.comments}</p>
-          </div>
-        )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+        <button onClick={handleSubmit} disabled={isLoading} style={{ padding: '10px 16px', borderRadius: 8 }}>
+          {isLoading ? 'Analyzing...' : 'Submit Pitch'}
+        </button>
+        <button onClick={startVoice} style={{ padding: '10px 16px', borderRadius: 8 }}>Use Voice</button>
       </div>
+
+      {feedback && (
+        <div style={{ marginTop: 30 }}>
+          <h3>Feedback</h3>
+          <p><strong>Confidence:</strong> {feedback.confidence}</p>
+          <p><strong>Clarity:</strong> {feedback.clarity}</p>
+          <p><strong>Structure:</strong> {feedback.structure}</p>
+          <p><strong>Authenticity:</strong> {feedback.authenticity}</p>
+          <p><strong>Persuasiveness:</strong> {feedback.persuasiveness}</p>
+          <p><strong>Comments:</strong> {feedback.comments}</p>
+
+          <div style={{ marginTop: 30, height: 300 }}>
+            <ResponsiveContainer>
+              <RadarChart data={radarData}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="subject" />
+                <PolarRadiusAxis angle={30} domain={[0, 10]} />
+                <Radar name="Feedback" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
+                <Tooltip />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
