@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import jsPDF from 'jspdf';
 
 const initialScores = {
   confidence: 0,
@@ -21,7 +22,7 @@ export default function Home() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 1-10), and comments.`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 1-10), strongestLine, weakestLine, and comments.`;
       const userPrompt = `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
@@ -41,6 +42,25 @@ export default function Home() {
       alert('Error getting feedback: ' + err.message);
     }
     setIsLoading(false);
+  };
+
+  const exportToPDF = () => {
+    if (!feedback) return;
+    const doc = new jsPDF();
+    doc.setFont('helvetica');
+    doc.setFontSize(16);
+    doc.text('AI Sales Trainer Feedback', 20, 20);
+    doc.setFontSize(12);
+    doc.text(`Confidence: ${feedback.confidence}`, 20, 40);
+    doc.text(`Clarity: ${feedback.clarity}`, 20, 50);
+    doc.text(`Structure: ${feedback.structure}`, 20, 60);
+    doc.text(`Authenticity: ${feedback.authenticity}`, 20, 70);
+    doc.text(`Persuasiveness: ${feedback.persuasiveness}`, 20, 80);
+    doc.text(`Strongest Line: ${feedback.strongestLine || 'N/A'}`, 20, 95);
+    doc.text(`Weakest Line: ${feedback.weakestLine || 'N/A'}`, 20, 105);
+    doc.text('Comments:', 20, 120);
+    doc.text(feedback.comments || 'No comments provided.', 20, 130, { maxWidth: 170 });
+    doc.save('sales-feedback.pdf');
   };
 
   const startVoice = () => {
@@ -117,6 +137,7 @@ export default function Home() {
           {isLoading ? 'Analyzing...' : 'Submit Pitch'}
         </button>
         <button onClick={startVoice} style={{ padding: '10px 16px', borderRadius: 8 }}>Use Voice</button>
+        <button onClick={exportToPDF} style={{ padding: '10px 16px', borderRadius: 8 }}>Download PDF</button>
       </div>
 
       {feedback && (
@@ -127,6 +148,8 @@ export default function Home() {
           <p><strong>Structure:</strong> {feedback.structure}</p>
           <p><strong>Authenticity:</strong> {feedback.authenticity}</p>
           <p><strong>Persuasiveness:</strong> {feedback.persuasiveness}</p>
+          <p><strong>Strongest Line:</strong> {feedback.strongestLine}</p>
+          <p><strong>Weakest Line:</strong> {feedback.weakestLine}</p>
           <p><strong>Comments:</strong> {feedback.comments}</p>
 
           <div style={{ marginTop: 30, height: 300 }}>
