@@ -29,10 +29,10 @@ export default function Home() {
   const [persona, setPersona] = useState('new');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [useRoleplay, setUseRoleplay] = useState(false);
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [roleplay, setRoleplay] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -86,7 +86,9 @@ export default function Home() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 1-10), strongestLine, weakestLine, and comments.${useRoleplay ? ' Include a follow-up objection from the persona being pitched to in a field called "objection".' : ''}`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona}.` +
+        (roleplay ? ' Then simulate an objection and provide a realistic response the user might encounter.' : '') +
+        ` Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
       const userPrompt = `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
@@ -133,10 +135,6 @@ export default function Home() {
     doc.text(`Weakest Line: ${feedback.weakestLine || 'N/A'}`, 20, 105);
     doc.text('Comments:', 20, 120);
     doc.text(feedback.comments || 'No comments provided.', 20, 130, { maxWidth: 170 });
-    if (feedback.objection) {
-      doc.text('Objection Simulation:', 20, 150);
-      doc.text(feedback.objection, 20, 160, { maxWidth: 170 });
-    }
     doc.save('sales-feedback.pdf');
   };
 
@@ -214,15 +212,16 @@ export default function Home() {
         style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
       />
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={useRoleplay} onChange={() => setUseRoleplay(!useRoleplay)} /> Roleplay Objection
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} />
+          Roleplay Objection
         </label>
       </div>
 
@@ -236,7 +235,7 @@ export default function Home() {
 
       {feedback && (
         <div style={{ marginTop: 40 }}>
-          <h3>Feedback Summary</h3>
+          <h3>Feedback Summary:</h3>
           <ul>
             <li><strong>Confidence:</strong> {feedback.confidence}</li>
             <li><strong>Clarity:</strong> {feedback.clarity}</li>
@@ -258,20 +257,6 @@ export default function Home() {
               </RadarChart>
             </ResponsiveContainer>
           </div>
-
-          {feedback.objection && (
-            <div style={{
-              marginTop: 30,
-              padding: 15,
-              borderRadius: 10,
-              backgroundColor: '#fff3cd',
-              border: '1px solid #ffeeba',
-              fontSize: 16
-            }}>
-              <strong>Objection Simulation:</strong><br />
-              {feedback.objection}
-            </div>
-          )}
         </div>
       )}
 
