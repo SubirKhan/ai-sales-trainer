@@ -29,10 +29,12 @@ export default function Home() {
   const [persona, setPersona] = useState('new');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [roleplayMode, setRoleplayMode] = useState(false);
+  const [objection, setObjection] = useState('');
+  const [scriptText, setScriptText] = useState('');
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [roleplay, setRoleplay] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -83,12 +85,19 @@ export default function Home() {
     }
   };
 
+  const handleScriptUpload = (e: any) => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = (event: any) => {
+      setScriptText(event.target.result);
+    };
+    reader.readAsText(file);
+  };
+
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona}.` +
-        (roleplay ? ' Then simulate an objection and provide a realistic response the user might encounter.' : '') +
-        ` Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona}. Use this script knowledge base: ${scriptText}. Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
       const userPrompt = `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
@@ -104,6 +113,12 @@ export default function Home() {
 
       const data = await response.json();
       setFeedback(data);
+
+      if (roleplayMode) {
+        setObjection("I'm not convinced this is right for me. What makes this better than the rest?");
+      } else {
+        setObjection('');
+      }
 
       if (user) {
         await addDoc(collection(db, 'pitchHistory'), {
@@ -178,15 +193,7 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{
-      fontFamily: 'Nunito, sans-serif',
-      maxWidth: 900,
-      margin: '0 auto',
-      padding: 40,
-      backgroundColor: '#f8f8ff',
-      borderRadius: '18px',
-      boxShadow: '0 4px 18px rgba(0,0,0,0.08)'
-    }}>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40 }}>
       <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
@@ -209,19 +216,24 @@ export default function Home() {
         onChange={(e) => setPitch(e.target.value)}
         placeholder="Your pitch here..."
         rows={5}
-        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
+        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 10 }}
       />
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      {roleplayMode && objection && (
+        <p style={{ color: '#b00020', marginBottom: 10 }}><strong>Objection:</strong> {objection}</p>
+      )}
+
+      <input type="file" accept=".txt" onChange={handleScriptUpload} style={{ marginBottom: 20 }} />
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
         <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} />
-          Roleplay Objection
+        <label>
+          <input type="checkbox" checked={roleplayMode} onChange={() => setRoleplayMode(!roleplayMode)} /> Roleplay Mode
         </label>
       </div>
 
