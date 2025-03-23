@@ -27,6 +27,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [coachTone, setCoachTone] = useState('friendly');
   const [persona, setPersona] = useState('new');
+  const [useRoleplay, setUseRoleplay] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const recognitionRef = useRef<any>(null);
@@ -85,7 +86,8 @@ export default function Home() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 1-10), strongestLine, weakestLine, and comments.`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona}${useRoleplay ? ', and simulate one realistic objection they may encounter.' : ''}. Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 1-10), strongestLine, weakestLine, comments${useRoleplay ? ', and objectionResponse' : ''}.`;
+
       const userPrompt = `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
@@ -132,6 +134,10 @@ export default function Home() {
     doc.text(`Weakest Line: ${feedback.weakestLine || 'N/A'}`, 20, 105);
     doc.text('Comments:', 20, 120);
     doc.text(feedback.comments || 'No comments provided.', 20, 130, { maxWidth: 170 });
+    if (feedback.objectionResponse) {
+      doc.text('Objection Response:', 20, 145);
+      doc.text(feedback.objectionResponse, 20, 155, { maxWidth: 170 });
+    }
     doc.save('sales-feedback.pdf');
   };
 
@@ -216,6 +222,10 @@ export default function Home() {
         <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={useRoleplay} onChange={() => setUseRoleplay(!useRoleplay)} />
+          Roleplay Objection
+        </label>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
@@ -238,6 +248,7 @@ export default function Home() {
             <li><strong>Strongest Line:</strong> {feedback.strongestLine}</li>
             <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
             <li><strong>Comments:</strong> {feedback.comments}</li>
+            {feedback.objectionResponse && <li><strong>Objection Response:</strong> {feedback.objectionResponse}</li>}
           </ul>
           <div style={{ height: 300, marginTop: 30 }}>
             <ResponsiveContainer>
