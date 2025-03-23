@@ -29,12 +29,13 @@ export default function Home() {
   const [persona, setPersona] = useState('new');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [roleplayMode, setRoleplayMode] = useState(false);
-  const [objection, setObjection] = useState('');
-  const [scriptText, setScriptText] = useState('');
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [roleplayObjection, setRoleplayObjection] = useState('');
+  const [script, setScript] = useState<string>('');
+  const [showComparison, setShowComparison] = useState(false);
+  const [selectedPitches, setSelectedPitches] = useState<any[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -87,18 +88,20 @@ export default function Home() {
 
   const handleScriptUpload = (e: any) => {
     const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = (event: any) => {
-      setScriptText(event.target.result);
-    };
-    reader.readAsText(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        setScript(evt.target?.result as string);
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona}. Use this script knowledge base: ${scriptText}. Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
-      const userPrompt = `Sales Pitch: ${pitch}`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments. Include a realistic roleplay objection.`;
+      const userPrompt = `${script ? `Company Sales Script: ${script}\n\n` : ''}Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -113,12 +116,7 @@ export default function Home() {
 
       const data = await response.json();
       setFeedback(data);
-
-      if (roleplayMode) {
-        setObjection("I'm not convinced this is right for me. What makes this better than the rest?");
-      } else {
-        setObjection('');
-      }
+      setRoleplayObjection(data.roleplayObjection || '');
 
       if (user) {
         await addDoc(collection(db, 'pitchHistory'), {
@@ -153,60 +151,30 @@ export default function Home() {
     doc.save('sales-feedback.pdf');
   };
 
-  const startVoice = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return alert('Speech recognition not supported');
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.onresult = (event: any) => {
-      setPitch(event.results[0][0].transcript);
-    };
-    recognition.start();
-    recognitionRef.current = recognition;
+  const toggleSelectedPitch = (entry: any) => {
+    const exists = selectedPitches.find(p => p.id === entry.id);
+    if (exists) {
+      setSelectedPitches(prev => prev.filter(p => p.id !== entry.id));
+    } else {
+      setSelectedPitches(prev => [...prev, entry]);
+    }
   };
 
-  const toneOptions = [
-    { value: 'friendly', label: 'Friendly Mentor' },
-    { value: 'tough', label: 'Tough Coach' },
-    { value: 'peer', label: 'Peer-Level Trainer' },
-    { value: 'closer', label: 'Closer' },
-    { value: 'best', label: 'Best Salesman in the World' }
-  ];
-
-  const personaOptions = [
-    { value: 'new', label: 'Completely New Person' },
-    { value: 'decision', label: 'Decision Maker' },
-    { value: 'skeptical', label: 'Skeptical Prospect' },
-    { value: 'executive', label: 'Time-Crunched Executive' },
-    { value: 'budget', label: 'Budget-Conscious Buyer' },
-    { value: 'technical', label: 'Technical Expert' },
-    { value: 'emotional', label: 'Emotional Buyer' },
-    { value: 'warm', label: 'Warm Lead' },
-    { value: 'competitor', label: 'Competitor (Fishing for Info)' }
-  ];
-
-  const radarData = feedback
-    ? Object.entries(feedback)
-        .filter(([key]) => initialScores.hasOwnProperty(key))
-        .map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }))
-    : [];
-
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40 }}>
-      <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
+    <div style={{ padding: 30, fontFamily: 'Nunito' }}>
+      <h1 style={{ fontSize: '2.2rem', marginBottom: 20 }}>AI Sales Trainer</h1>
 
       {!user ? (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-          <button onClick={handleGoogleSignIn}>Sign in with Google</button>
+        <div>
           <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
           <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
           <button onClick={handleLogin}>Login</button>
           <button onClick={handleSignup}>Sign Up</button>
+          <button onClick={handleGoogleSignIn}>Sign in with Google</button>
         </div>
       ) : (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-          <span>Welcome, {user.displayName || user.email}</span>
+        <div>
+          <p>Welcome, {user.displayName || user.email}</p>
           <button onClick={handleLogout}>Logout</button>
         </div>
       )}
@@ -214,53 +182,40 @@ export default function Home() {
       <textarea
         value={pitch}
         onChange={(e) => setPitch(e.target.value)}
-        placeholder="Your pitch here..."
+        placeholder="Type or speak your pitch..."
         rows={5}
-        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 10 }}
+        style={{ width: '100%', padding: 12, fontSize: 16, marginTop: 20 }}
       />
 
-      {roleplayMode && objection && (
-        <p style={{ color: '#b00020', marginBottom: 10 }}><strong>Objection:</strong> {objection}</p>
+      {roleplayObjection && (
+        <p style={{ background: '#f9f9f9', padding: 10, borderRadius: 8, marginTop: 10 }}>
+          <strong>Roleplay Objection:</strong> {roleplayObjection}
+        </p>
       )}
 
-      <input type="file" accept=".txt" onChange={handleScriptUpload} style={{ marginBottom: 20 }} />
+      <input type="file" onChange={handleScriptUpload} accept=".txt" style={{ marginTop: 10 }} />
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
-          {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-        <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
-          {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-        <label>
-          <input type="checkbox" checked={roleplayMode} onChange={() => setRoleplayMode(!roleplayMode)} /> Roleplay Mode
-        </label>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <button onClick={handleSubmit} disabled={isLoading}>
-          {isLoading ? 'Analyzing...' : 'Submit Pitch'}
-        </button>
-        <button onClick={startVoice}>Use Voice</button>
-        <button onClick={exportToPDF}>Download PDF</button>
-      </div>
+      <button onClick={handleSubmit} disabled={isLoading}>
+        {isLoading ? 'Analyzing...' : 'Submit'}
+      </button>
 
       {feedback && (
-        <div style={{ marginTop: 40 }}>
-          <h3>Feedback Summary:</h3>
+        <>
+          <h3 style={{ marginTop: 30 }}>Feedback Summary:</h3>
           <ul>
-            <li><strong>Confidence:</strong> {feedback.confidence}</li>
-            <li><strong>Clarity:</strong> {feedback.clarity}</li>
-            <li><strong>Structure:</strong> {feedback.structure}</li>
-            <li><strong>Authenticity:</strong> {feedback.authenticity}</li>
-            <li><strong>Persuasiveness:</strong> {feedback.persuasiveness}</li>
-            <li><strong>Strongest Line:</strong> {feedback.strongestLine}</li>
-            <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
-            <li><strong>Comments:</strong> {feedback.comments}</li>
+            <li>Confidence: {feedback.confidence}</li>
+            <li>Clarity: {feedback.clarity}</li>
+            <li>Structure: {feedback.structure}</li>
+            <li>Authenticity: {feedback.authenticity}</li>
+            <li>Persuasiveness: {feedback.persuasiveness}</li>
+            <li>Strongest Line: {feedback.strongestLine}</li>
+            <li>Weakest Line: {feedback.weakestLine}</li>
+            <li>Comments: {feedback.comments}</li>
           </ul>
-          <div style={{ height: 300, marginTop: 30 }}>
+
+          <div style={{ height: 300 }}>
             <ResponsiveContainer>
-              <RadarChart data={radarData}>
+              <RadarChart data={Object.entries(feedback).filter(([key]) => initialScores.hasOwnProperty(key)).map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }))}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="subject" />
                 <PolarRadiusAxis angle={30} domain={[0, 10]} />
@@ -269,21 +224,60 @@ export default function Home() {
               </RadarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </>
       )}
 
       {history.length > 0 && (
-        <div style={{ marginTop: 50 }}>
+        <div style={{ marginTop: 40 }}>
           <h3>Pitch History</h3>
-          <ul style={{ maxHeight: 200, overflowY: 'auto', paddingLeft: 0 }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={showComparison}
+              onChange={() => setShowComparison(!showComparison)}
+              style={{ marginRight: 8 }}
+            />
+            Compare Selected
+          </label>
+          <ul style={{ paddingLeft: 0 }}>
             {history.map(entry => (
-              <li key={entry.id} style={{ background: '#fff', padding: 10, marginBottom: 12, borderRadius: 8 }}>
-                <p><strong>Pitch:</strong> {entry.pitch}</p>
-                <p><strong>Confidence:</strong> {entry.feedback?.confidence}</p>
-                <p><strong>Date:</strong> {entry.timestamp?.toDate().toLocaleString() || 'N/A'}</p>
+              <li key={entry.id} style={{ marginBottom: 12, listStyle: 'none', background: '#fff', padding: 10, borderRadius: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={selectedPitches.some(p => p.id === entry.id)}
+                  onChange={() => toggleSelectedPitch(entry)}
+                  style={{ marginRight: 6 }}
+                />
+                <strong>Pitch:</strong> {entry.pitch}<br />
+                <strong>Date:</strong> {entry.timestamp?.toDate().toLocaleString() || 'N/A'}
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {showComparison && selectedPitches.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          <h3>Multi-Pitch Comparison</h3>
+          <ResponsiveContainer width="100%" height={350}>
+            <RadarChart outerRadius={120}>
+              <PolarGrid />
+              <PolarAngleAxis dataKey="subject" />
+              <PolarRadiusAxis angle={30} domain={[0, 10]} />
+              {selectedPitches.map((entry, idx) => (
+                <Radar
+                  key={entry.id}
+                  name={`Pitch ${idx + 1}`}
+                  data={Object.entries(entry.feedback).filter(([key]) => initialScores.hasOwnProperty(key)).map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }))}
+                  dataKey="A"
+                  stroke="#82ca9d"
+                  fillOpacity={0.4}
+                  fill="#82ca9d"
+                />
+              ))}
+              <Tooltip />
+            </RadarChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>
