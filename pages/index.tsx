@@ -27,10 +27,10 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [coachTone, setCoachTone] = useState('friendly');
   const [persona, setPersona] = useState('new');
-  const [roleplay, setRoleplay] = useState(false);
-  const [objection, setObjection] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [roleplay, setRoleplay] = useState(false);
+  const [simulatedObjection, setSimulatedObjection] = useState('');
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -52,9 +52,16 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    setObjection('');
-  }, [pitch, roleplay]);
+  const generateSmartTips = (fb: any) => {
+    if (!fb) return [];
+    const tips: string[] = [];
+    if (fb.confidence < 4) tips.push('Work on sounding more certain and enthusiastic in your delivery.');
+    if (fb.clarity < 4) tips.push('Break down your points more clearly and avoid jargon.');
+    if (fb.structure < 4) tips.push('Follow a clear beginning, middle, and end in your pitch.');
+    if (fb.authenticity < 4) tips.push('Be more genuine—speak as if you truly believe in your product.');
+    if (fb.persuasiveness < 4) tips.push('Emphasize value and tailor your offer to their needs.');
+    return tips.slice(0, 3);
+  };
 
   const handleGoogleSignIn = async () => {
     try {
@@ -90,15 +97,11 @@ export default function Home() {
 
   const handleSubmit = async () => {
     setIsLoading(true);
-    try {
-      let simulatedObjection = '';
-      if (roleplay) {
-        simulatedObjection = "I'm not sure I need your products. How are they different from what I currently use?";
-        setObjection(simulatedObjection);
-      }
+    setSimulatedObjection('');
 
+    try {
       const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
-      const userPrompt = `Sales Pitch: ${pitch}${roleplay ? `\nObjection: ${simulatedObjection}` : ''}`;
+      const userPrompt = `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -107,18 +110,20 @@ export default function Home() {
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
-          ]
+          ],
+          roleplay
         })
       });
 
       const data = await response.json();
-      setFeedback(data);
+      setFeedback(data.feedback);
+      if (data.objection) setSimulatedObjection(data.objection);
 
       if (user) {
         await addDoc(collection(db, 'pitchHistory'), {
           uid: user.uid,
           pitch,
-          feedback: data,
+          feedback: data.feedback,
           timestamp: serverTimestamp()
         });
       }
@@ -187,7 +192,15 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: '18px', boxShadow: '0 4px 18px rgba(0,0,0,0.08)' }}>
+    <div style={{
+      fontFamily: 'Nunito, sans-serif',
+      maxWidth: 900,
+      margin: '0 auto',
+      padding: 40,
+      backgroundColor: '#f8f8ff',
+      borderRadius: '18px',
+      boxShadow: '0 4px 18px rgba(0,0,0,0.08)'
+    }}>
       <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
@@ -213,13 +226,20 @@ export default function Home() {
         style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
       />
 
-      {objection && (
-        <div style={{ backgroundColor: '#fff3cd', padding: '12px 16px', borderRadius: '8px', marginBottom: 20, border: '1px solid #ffeeba' }}>
-          <strong>Simulated Objection:</strong> {objection}
+      {simulatedObjection && (
+        <div style={{
+          background: '#fff3cd',
+          color: '#856404',
+          padding: '12px 16px',
+          borderRadius: 8,
+          marginBottom: 16,
+          border: '1px solid #ffeeba'
+        }}>
+          <strong>Simulated Objection:</strong> {simulatedObjection}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
@@ -227,12 +247,15 @@ export default function Home() {
           {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} /> Roleplay Objection
+          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} />
+          Roleplay Objection
         </label>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <button onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Analyzing...' : 'Submit Pitch'}</button>
+        <button onClick={handleSubmit} disabled={isLoading}>
+          {isLoading ? 'Analyzing...' : 'Submit Pitch'}
+        </button>
         <button onClick={startVoice}>Use Voice</button>
         <button onClick={exportToPDF}>Download PDF</button>
       </div>
@@ -250,6 +273,7 @@ export default function Home() {
             <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
             <li><strong>Comments:</strong> {feedback.comments}</li>
           </ul>
+
           <div style={{ height: 300, marginTop: 30 }}>
             <ResponsiveContainer>
               <RadarChart data={radarData}>
@@ -260,6 +284,15 @@ export default function Home() {
                 <Tooltip />
               </RadarChart>
             </ResponsiveContainer>
+          </div>
+
+          <div style={{ marginTop: 40 }}>
+            <h3>Smart Tips:</h3>
+            <ul>
+              {generateSmartTips(feedback).map((tip, idx) => (
+                <li key={idx}>{tip}</li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
