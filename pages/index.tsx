@@ -27,13 +27,13 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [coachTone, setCoachTone] = useState('friendly');
   const [persona, setPersona] = useState('new');
+  const [roleplay, setRoleplay] = useState(false);
+  const [objection, setObjection] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [roleplay, setRoleplay] = useState(false);
-  const [objection, setObjection] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -51,6 +51,10 @@ export default function Home() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    setObjection('');
+  }, [pitch, roleplay]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -87,8 +91,14 @@ export default function Home() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
+      let simulatedObjection = '';
+      if (roleplay) {
+        simulatedObjection = "I'm not sure I need your products. How are they different from what I currently use?";
+        setObjection(simulatedObjection);
+      }
+
       const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
-      const userPrompt = `Sales Pitch: ${pitch}` + (roleplay ? `\nSimulate objection and critique as if the customer said: '${objection}'` : '');
+      const userPrompt = `Sales Pitch: ${pitch}${roleplay ? `\nObjection: ${simulatedObjection}` : ''}`;
 
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -177,7 +187,7 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40 }}>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: '18px', boxShadow: '0 4px 18px rgba(0,0,0,0.08)' }}>
       <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
@@ -203,7 +213,13 @@ export default function Home() {
         style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+      {objection && (
+        <div style={{ backgroundColor: '#fff3cd', padding: '12px 16px', borderRadius: '8px', marginBottom: 20, border: '1px solid #ffeeba' }}>
+          <strong>Simulated Objection:</strong> {objection}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
         <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
@@ -211,17 +227,9 @@ export default function Home() {
           {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} />
-          Roleplay Objection
+          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} /> Roleplay Objection
         </label>
       </div>
-
-      {roleplay && (
-        <div style={{ background: '#fff7e6', padding: 12, borderRadius: 6, marginBottom: 20 }}>
-          <strong>Simulated Objection:</strong>
-          <div>I'm not sure if I need your products. How are they different from what I currently use?</div>
-        </div>
-      )}
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <button onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Analyzing...' : 'Submit Pitch'}</button>
