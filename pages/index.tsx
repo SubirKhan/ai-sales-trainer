@@ -32,10 +32,7 @@ export default function Home() {
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [roleplayObjection, setRoleplayObjection] = useState('');
-  const [script, setScript] = useState<string>('');
-  const [showComparison, setShowComparison] = useState(false);
-  const [selectedPitches, setSelectedPitches] = useState<any[]>([]);
+  const [multiPitchData, setMultiPitchData] = useState<any[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -49,6 +46,7 @@ export default function Home() {
         const snapshot = await getDocs(q);
         const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setHistory(results);
+        setMultiPitchData(results.slice(0, 3));
       }
     });
     return () => unsubscribe();
@@ -86,22 +84,11 @@ export default function Home() {
     }
   };
 
-  const handleScriptUpload = (e: any) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        setScript(evt.target?.result as string);
-      };
-      reader.readAsText(file);
-    }
-  };
-
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments. Include a realistic roleplay objection.`;
-      const userPrompt = `${script ? `Company Sales Script: ${script}\n\n` : ''}Sales Pitch: ${pitch}`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
+      const userPrompt = `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -116,7 +103,6 @@ export default function Home() {
 
       const data = await response.json();
       setFeedback(data);
-      setRoleplayObjection(data.roleplayObjection || '');
 
       if (user) {
         await addDoc(collection(db, 'pitchHistory'), {
@@ -151,30 +137,60 @@ export default function Home() {
     doc.save('sales-feedback.pdf');
   };
 
-  const toggleSelectedPitch = (entry: any) => {
-    const exists = selectedPitches.find(p => p.id === entry.id);
-    if (exists) {
-      setSelectedPitches(prev => prev.filter(p => p.id !== entry.id));
-    } else {
-      setSelectedPitches(prev => [...prev, entry]);
-    }
+  const startVoice = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return alert('Speech recognition not supported');
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.onresult = (event: any) => {
+      setPitch(event.results[0][0].transcript);
+    };
+    recognition.start();
+    recognitionRef.current = recognition;
   };
 
+  const toneOptions = [
+    { value: 'friendly', label: 'Friendly Mentor' },
+    { value: 'tough', label: 'Tough Coach' },
+    { value: 'peer', label: 'Peer-Level Trainer' },
+    { value: 'closer', label: 'Closer' },
+    { value: 'best', label: 'Best Salesman in the World' }
+  ];
+
+  const personaOptions = [
+    { value: 'new', label: 'Completely New Person' },
+    { value: 'decision', label: 'Decision Maker' },
+    { value: 'skeptical', label: 'Skeptical Prospect' },
+    { value: 'executive', label: 'Time-Crunched Executive' },
+    { value: 'budget', label: 'Budget-Conscious Buyer' },
+    { value: 'technical', label: 'Technical Expert' },
+    { value: 'emotional', label: 'Emotional Buyer' },
+    { value: 'warm', label: 'Warm Lead' },
+    { value: 'competitor', label: 'Competitor (Fishing for Info)' }
+  ];
+
+  const radarData = feedback
+    ? Object.entries(feedback)
+        .filter(([key]) => initialScores.hasOwnProperty(key))
+        .map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }))
+    : [];
+
   return (
-    <div style={{ padding: 30, fontFamily: 'Nunito' }}>
-      <h1 style={{ fontSize: '2.2rem', marginBottom: 20 }}>AI Sales Trainer</h1>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 1000, margin: '0 auto', padding: 40 }}>
+      <h1 style={{ fontSize: '2rem', textAlign: 'center' }}>AI Sales Trainer</h1>
 
       {!user ? (
-        <div>
-          <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-          <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+        <div style={{ marginBottom: 20 }}>
+          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" />
           <button onClick={handleLogin}>Login</button>
           <button onClick={handleSignup}>Sign Up</button>
-          <button onClick={handleGoogleSignIn}>Sign in with Google</button>
+          <button onClick={handleGoogleSignIn}>Sign In with Google</button>
         </div>
       ) : (
-        <div>
-          <p>Welcome, {user.displayName || user.email}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          <span>Welcome, {user.email}</span>
           <button onClick={handleLogout}>Logout</button>
         </div>
       )}
@@ -182,26 +198,29 @@ export default function Home() {
       <textarea
         value={pitch}
         onChange={(e) => setPitch(e.target.value)}
-        placeholder="Type or speak your pitch..."
+        placeholder="Type your pitch here..."
         rows={5}
-        style={{ width: '100%', padding: 12, fontSize: 16, marginTop: 20 }}
+        style={{ width: '100%', padding: 12, marginBottom: 20 }}
       />
 
-      {roleplayObjection && (
-        <p style={{ background: '#f9f9f9', padding: 10, borderRadius: 8, marginTop: 10 }}>
-          <strong>Roleplay Objection:</strong> {roleplayObjection}
-        </p>
-      )}
+      <div style={{ marginBottom: 20 }}>
+        <select value={coachTone} onChange={e => setCoachTone(e.target.value)}>
+          {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        <select value={persona} onChange={e => setPersona(e.target.value)}>
+          {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+      </div>
 
-      <input type="file" onChange={handleScriptUpload} accept=".txt" style={{ marginTop: 10 }} />
-
-      <button onClick={handleSubmit} disabled={isLoading}>
-        {isLoading ? 'Analyzing...' : 'Submit'}
-      </button>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Analyzing...' : 'Submit Pitch'}</button>
+        <button onClick={startVoice}>Use Voice</button>
+        <button onClick={exportToPDF}>Download PDF</button>
+      </div>
 
       {feedback && (
-        <>
-          <h3 style={{ marginTop: 30 }}>Feedback Summary:</h3>
+        <div style={{ marginTop: 30 }}>
+          <h3>Feedback Summary:</h3>
           <ul>
             <li>Confidence: {feedback.confidence}</li>
             <li>Clarity: {feedback.clarity}</li>
@@ -213,9 +232,9 @@ export default function Home() {
             <li>Comments: {feedback.comments}</li>
           </ul>
 
-          <div style={{ height: 300 }}>
+          <div style={{ marginTop: 20, height: 300 }}>
             <ResponsiveContainer>
-              <RadarChart data={Object.entries(feedback).filter(([key]) => initialScores.hasOwnProperty(key)).map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }))}>
+              <RadarChart data={radarData} outerRadius={90}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="subject" />
                 <PolarRadiusAxis angle={30} domain={[0, 10]} />
@@ -224,60 +243,40 @@ export default function Home() {
               </RadarChart>
             </ResponsiveContainer>
           </div>
-        </>
-      )}
-
-      {history.length > 0 && (
-        <div style={{ marginTop: 40 }}>
-          <h3>Pitch History</h3>
-          <label>
-            <input
-              type="checkbox"
-              checked={showComparison}
-              onChange={() => setShowComparison(!showComparison)}
-              style={{ marginRight: 8 }}
-            />
-            Compare Selected
-          </label>
-          <ul style={{ paddingLeft: 0 }}>
-            {history.map(entry => (
-              <li key={entry.id} style={{ marginBottom: 12, listStyle: 'none', background: '#fff', padding: 10, borderRadius: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={selectedPitches.some(p => p.id === entry.id)}
-                  onChange={() => toggleSelectedPitch(entry)}
-                  style={{ marginRight: 6 }}
-                />
-                <strong>Pitch:</strong> {entry.pitch}<br />
-                <strong>Date:</strong> {entry.timestamp?.toDate().toLocaleString() || 'N/A'}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 
-      {showComparison && selectedPitches.length > 0 && (
-        <div style={{ marginTop: 30 }}>
+      {multiPitchData.length > 0 && (
+        <div style={{ marginTop: 50 }}>
           <h3>Multi-Pitch Comparison</h3>
-          <ResponsiveContainer width="100%" height={350}>
-            <RadarChart outerRadius={120}>
-              <PolarGrid />
-              <PolarAngleAxis dataKey="subject" />
-              <PolarRadiusAxis angle={30} domain={[0, 10]} />
-              {selectedPitches.map((entry, idx) => (
-                <Radar
-                  key={entry.id}
-                  name={`Pitch ${idx + 1}`}
-                  data={Object.entries(entry.feedback).filter(([key]) => initialScores.hasOwnProperty(key)).map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }))}
-                  dataKey="A"
-                  stroke="#82ca9d"
-                  fillOpacity={0.4}
-                  fill="#82ca9d"
-                />
-              ))}
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+            {multiPitchData.map((entry, idx) => {
+              const radarData = Object.entries(entry.feedback)
+                .filter(([key]) => initialScores.hasOwnProperty(key))
+                .map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }));
+
+              return (
+                <div key={entry.id} style={{ flex: 1, minWidth: 300, margin: '20px 10px' }}>
+                  <h4>{`Pitch ${idx + 1}`}</h4>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <RadarChart outerRadius={90} data={radarData}>
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="subject" />
+                      <PolarRadiusAxis angle={30} domain={[0, 10]} />
+                      <Radar
+                        name={`Pitch ${idx + 1}`}
+                        dataKey="A"
+                        stroke="#82ca9d"
+                        fill="#82ca9d"
+                        fillOpacity={0.4}
+                      />
+                      <Tooltip />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
