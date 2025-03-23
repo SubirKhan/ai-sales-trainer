@@ -29,10 +29,11 @@ export default function Home() {
   const [persona, setPersona] = useState('new');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [roleplayMode, setRoleplayMode] = useState(false);
+  const [objection, setObjection] = useState('');
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [multiPitchData, setMultiPitchData] = useState<any[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -46,7 +47,6 @@ export default function Home() {
         const snapshot = await getDocs(q);
         const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setHistory(results);
-        setMultiPitchData(results.slice(0, 3));
       }
     });
     return () => unsubscribe();
@@ -87,8 +87,11 @@ export default function Home() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
-      const userPrompt = `Sales Pitch: ${pitch}`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona}. Return JSON with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, comments, and if roleplayMode is on, add objection.`;
+
+      const userPrompt = roleplayMode
+        ? `Act like a real-life sales objection. Simulate the response of a ${persona}. Then evaluate the pitch. Sales Pitch: ${pitch}`
+        : `Sales Pitch: ${pitch}`;
 
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -103,6 +106,12 @@ export default function Home() {
 
       const data = await response.json();
       setFeedback(data);
+
+      if (roleplayMode && data?.objection) {
+        setObjection(data.objection);
+      } else {
+        setObjection('');
+      }
 
       if (user) {
         await addDoc(collection(db, 'pitchHistory'), {
@@ -177,64 +186,95 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 1000, margin: '0 auto', padding: 40 }}>
-      <h1 style={{ fontSize: '2rem', textAlign: 'center' }}>AI Sales Trainer</h1>
+    <div style={{
+      fontFamily: 'Nunito, sans-serif',
+      maxWidth: 900,
+      margin: '0 auto',
+      padding: 40,
+      backgroundColor: '#f8f8ff',
+      borderRadius: '18px',
+      boxShadow: '0 4px 18px rgba(0,0,0,0.08)'
+    }}>
+      <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
-        <div style={{ marginBottom: 20 }}>
-          <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+          <button onClick={handleGoogleSignIn}>Sign in with Google</button>
+          <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+          <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
           <button onClick={handleLogin}>Login</button>
           <button onClick={handleSignup}>Sign Up</button>
-          <button onClick={handleGoogleSignIn}>Sign In with Google</button>
         </div>
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-          <span>Welcome, {user.email}</span>
+          <span>Welcome, {user.displayName || user.email}</span>
           <button onClick={handleLogout}>Logout</button>
         </div>
       )}
 
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+        <label style={{ marginRight: 10, fontWeight: 'bold' }}>Roleplay Mode:</label>
+        <input
+          type="checkbox"
+          checked={roleplayMode}
+          onChange={() => setRoleplayMode(!roleplayMode)}
+        />
+      </div>
+
       <textarea
         value={pitch}
         onChange={(e) => setPitch(e.target.value)}
-        placeholder="Type your pitch here..."
+        placeholder="Your pitch here..."
         rows={5}
-        style={{ width: '100%', padding: 12, marginBottom: 20 }}
+        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
       />
 
-      <div style={{ marginBottom: 20 }}>
-        <select value={coachTone} onChange={e => setCoachTone(e.target.value)}>
+      {roleplayMode && objection && (
+        <div style={{
+          backgroundColor: '#fff6e5',
+          border: '1px solid #f2c97d',
+          padding: '12px',
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
+          <strong>Simulated Objection:</strong>
+          <p style={{ marginTop: 6 }}>{objection}</p>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
-        <select value={persona} onChange={e => setPersona(e.target.value)}>
+        <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
       </div>
 
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Analyzing...' : 'Submit Pitch'}</button>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+        <button onClick={handleSubmit} disabled={isLoading}>
+          {isLoading ? 'Analyzing...' : 'Submit Pitch'}
+        </button>
         <button onClick={startVoice}>Use Voice</button>
         <button onClick={exportToPDF}>Download PDF</button>
       </div>
 
       {feedback && (
-        <div style={{ marginTop: 30 }}>
+        <div style={{ marginTop: 40 }}>
           <h3>Feedback Summary:</h3>
           <ul>
-            <li>Confidence: {feedback.confidence}</li>
-            <li>Clarity: {feedback.clarity}</li>
-            <li>Structure: {feedback.structure}</li>
-            <li>Authenticity: {feedback.authenticity}</li>
-            <li>Persuasiveness: {feedback.persuasiveness}</li>
-            <li>Strongest Line: {feedback.strongestLine}</li>
-            <li>Weakest Line: {feedback.weakestLine}</li>
-            <li>Comments: {feedback.comments}</li>
+            <li><strong>Confidence:</strong> {feedback.confidence}</li>
+            <li><strong>Clarity:</strong> {feedback.clarity}</li>
+            <li><strong>Structure:</strong> {feedback.structure}</li>
+            <li><strong>Authenticity:</strong> {feedback.authenticity}</li>
+            <li><strong>Persuasiveness:</strong> {feedback.persuasiveness}</li>
+            <li><strong>Strongest Line:</strong> {feedback.strongestLine}</li>
+            <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
+            <li><strong>Comments:</strong> {feedback.comments}</li>
           </ul>
-
-          <div style={{ marginTop: 20, height: 300 }}>
+          <div style={{ height: 300, marginTop: 30 }}>
             <ResponsiveContainer>
-              <RadarChart data={radarData} outerRadius={90}>
+              <RadarChart data={radarData}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="subject" />
                 <PolarRadiusAxis angle={30} domain={[0, 10]} />
@@ -246,37 +286,18 @@ export default function Home() {
         </div>
       )}
 
-      {multiPitchData.length > 0 && (
+      {history.length > 0 && (
         <div style={{ marginTop: 50 }}>
-          <h3>Multi-Pitch Comparison</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-            {multiPitchData.map((entry, idx) => {
-              const radarData = Object.entries(entry.feedback)
-                .filter(([key]) => initialScores.hasOwnProperty(key))
-                .map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }));
-
-              return (
-                <div key={entry.id} style={{ flex: 1, minWidth: 300, margin: '20px 10px' }}>
-                  <h4>{`Pitch ${idx + 1}`}</h4>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <RadarChart outerRadius={90} data={radarData}>
-                      <PolarGrid />
-                      <PolarAngleAxis dataKey="subject" />
-                      <PolarRadiusAxis angle={30} domain={[0, 10]} />
-                      <Radar
-                        name={`Pitch ${idx + 1}`}
-                        dataKey="A"
-                        stroke="#82ca9d"
-                        fill="#82ca9d"
-                        fillOpacity={0.4}
-                      />
-                      <Tooltip />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-              );
-            })}
-          </div>
+          <h3>Pitch History</h3>
+          <ul style={{ maxHeight: 200, overflowY: 'auto', paddingLeft: 0 }}>
+            {history.map(entry => (
+              <li key={entry.id} style={{ background: '#fff', padding: 10, marginBottom: 12, borderRadius: 8 }}>
+                <p><strong>Pitch:</strong> {entry.pitch}</p>
+                <p><strong>Confidence:</strong> {entry.feedback?.confidence}</p>
+                <p><strong>Date:</strong> {entry.timestamp?.toDate().toLocaleString() || 'N/A'}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
