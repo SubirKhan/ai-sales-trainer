@@ -29,11 +29,11 @@ export default function Home() {
   const [persona, setPersona] = useState('new');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [roleplayMode, setRoleplayMode] = useState(false);
-  const [objection, setObjection] = useState('');
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [roleplay, setRoleplay] = useState(false);
+  const [objection, setObjection] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -87,11 +87,8 @@ export default function Home() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona}. Return JSON with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, comments, and if roleplayMode is on, add objection.`;
-
-      const userPrompt = roleplayMode
-        ? `Act like a real-life sales objection. Simulate the response of a ${persona}. Then evaluate the pitch. Sales Pitch: ${pitch}`
-        : `Sales Pitch: ${pitch}`;
+      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
+      const userPrompt = `Sales Pitch: ${pitch}` + (roleplay ? `\nSimulate objection and critique as if the customer said: '${objection}'` : '');
 
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -106,12 +103,6 @@ export default function Home() {
 
       const data = await response.json();
       setFeedback(data);
-
-      if (roleplayMode && data?.objection) {
-        setObjection(data.objection);
-      } else {
-        setObjection('');
-      }
 
       if (user) {
         await addDoc(collection(db, 'pitchHistory'), {
@@ -186,15 +177,7 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{
-      fontFamily: 'Nunito, sans-serif',
-      maxWidth: 900,
-      margin: '0 auto',
-      padding: 40,
-      backgroundColor: '#f8f8ff',
-      borderRadius: '18px',
-      boxShadow: '0 4px 18px rgba(0,0,0,0.08)'
-    }}>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40 }}>
       <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
@@ -212,15 +195,6 @@ export default function Home() {
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-        <label style={{ marginRight: 10, fontWeight: 'bold' }}>Roleplay Mode:</label>
-        <input
-          type="checkbox"
-          checked={roleplayMode}
-          onChange={() => setRoleplayMode(!roleplayMode)}
-        />
-      </div>
-
       <textarea
         value={pitch}
         onChange={(e) => setPitch(e.target.value)}
@@ -229,32 +203,28 @@ export default function Home() {
         style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
       />
 
-      {roleplayMode && objection && (
-        <div style={{
-          backgroundColor: '#fff6e5',
-          border: '1px solid #f2c97d',
-          padding: '12px',
-          borderRadius: '8px',
-          marginBottom: '20px'
-        }}>
-          <strong>Simulated Objection:</strong>
-          <p style={{ marginTop: 6 }}>{objection}</p>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
         <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
           {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} />
+          Roleplay Objection
+        </label>
       </div>
 
+      {roleplay && (
+        <div style={{ background: '#fff7e6', padding: 12, borderRadius: 6, marginBottom: 20 }}>
+          <strong>Simulated Objection:</strong>
+          <div>I'm not sure if I need your products. How are they different from what I currently use?</div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <button onClick={handleSubmit} disabled={isLoading}>
-          {isLoading ? 'Analyzing...' : 'Submit Pitch'}
-        </button>
+        <button onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Analyzing...' : 'Submit Pitch'}</button>
         <button onClick={startVoice}>Use Voice</button>
         <button onClick={exportToPDF}>Download PDF</button>
       </div>
