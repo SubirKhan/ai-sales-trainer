@@ -1,20 +1,17 @@
-// pages/index.tsx
 import { useState, useRef, useEffect } from 'react';
-import jsPDF from 'jspdf';
 import {
-  Radar, RadarChart, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Tooltip, ResponsiveContainer
-} from 'recharts';
-import {
-  GoogleAuthProvider, signInWithPopup, signOut,
-  onAuthStateChanged, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, User
+  signInWithPopup, GoogleAuthProvider, signOut,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, User
 } from 'firebase/auth';
 import { auth, db } from '../utils/firebase';
 import {
   collection, addDoc, serverTimestamp,
   query, where, orderBy, getDocs
 } from 'firebase/firestore';
+import jsPDF from 'jspdf';
+import {
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer
+} from 'recharts';
 
 const initialScores = {
   confidence: 0,
@@ -26,14 +23,14 @@ const initialScores = {
 
 export default function Home() {
   const [pitch, setPitch] = useState('');
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [coachTone, setCoachTone] = useState('friendly');
   const [persona, setPersona] = useState('new');
-  const recognitionRef = useRef(null);
-  const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const recognitionRef = useRef<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
 
   useEffect(() => {
@@ -54,35 +51,34 @@ export default function Home() {
   }, []);
 
   const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      alert("Login failed: " + (error as Error).message);
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (err: any) {
+      alert('Google Sign-In failed: ' + err.message);
     }
   };
 
-  const handleEmailRegister = async () => {
+  const handleSignup = async () => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      alert("Signup failed: " + (error as Error).message);
+    } catch (err: any) {
+      alert('Signup failed: ' + err.message);
     }
   };
 
-  const handleEmailLogin = async () => {
+  const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      alert("Login failed: " + (error as Error).message);
+    } catch (err: any) {
+      alert('Login failed: ' + err.message);
     }
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-    } catch (error) {
-      alert("Logout failed: " + (error as Error).message);
+    } catch (err: any) {
+      alert('Logout failed: ' + err.message);
     }
   };
 
@@ -140,20 +136,16 @@ export default function Home() {
   };
 
   const startVoice = () => {
-    try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) return alert('Speech recognition not supported');
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return alert('Speech recognition not supported');
 
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'en-US';
-      recognition.onresult = (event: any) => {
-        setPitch(event.results[0][0].transcript);
-      };
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch (err: any) {
-      alert('Voice input failed: ' + err.message);
-    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.onresult = (event: any) => {
+      setPitch(event.results[0][0].transcript);
+    };
+    recognition.start();
+    recognitionRef.current = recognition;
   };
 
   const toneOptions = [
@@ -183,54 +175,76 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 800, margin: '0 auto', padding: 30 }}>
-      <h1>AI Sales Trainer</h1>
+    <div style={{
+      fontFamily: 'Nunito, sans-serif',
+      maxWidth: 900,
+      margin: '0 auto',
+      padding: 40,
+      backgroundColor: '#f8f8ff',
+      borderRadius: '18px',
+      boxShadow: '0 4px 18px rgba(0,0,0,0.08)'
+    }}>
+      <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
-        <div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
           <button onClick={handleGoogleSignIn}>Sign in with Google</button>
           <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
           <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-          <button onClick={handleEmailLogin}>Login</button>
-          <button onClick={handleEmailRegister}>Sign Up</button>
+          <button onClick={handleLogin}>Login</button>
+          <button onClick={handleSignup}>Sign Up</button>
         </div>
       ) : (
-        <div>
-          <p>Welcome, {user.email}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          <span>Welcome, {user.displayName || user.email}</span>
           <button onClick={handleLogout}>Logout</button>
         </div>
       )}
 
-      <select value={coachTone} onChange={e => setCoachTone(e.target.value)}>
-        {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-      </select>
+      <textarea
+        value={pitch}
+        onChange={(e) => setPitch(e.target.value)}
+        placeholder="Your pitch here..."
+        rows={5}
+        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
+      />
 
-      <select value={persona} onChange={e => setPersona(e.target.value)}>
-        {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-      </select>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
+          {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
+          {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+      </div>
 
-      <textarea value={pitch} onChange={e => setPitch(e.target.value)} placeholder="Your pitch here..." rows={5} />
-
-      <button onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Analyzing...' : 'Submit Pitch'}</button>
-      <button onClick={startVoice}>Use Voice</button>
-      <button onClick={exportToPDF}>Download PDF</button>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+        <button onClick={handleSubmit} disabled={isLoading}>
+          {isLoading ? 'Analyzing...' : 'Submit Pitch'}
+        </button>
+        <button onClick={startVoice}>Use Voice</button>
+        <button onClick={exportToPDF}>Download PDF</button>
+      </div>
 
       {feedback && (
-        <div>
-          <h2>Feedback</h2>
-          {Object.entries(initialScores).map(([key]) => (
-            <p key={key}><strong>{key}:</strong> {feedback[key]}</p>
-          ))}
-          <p><strong>Strongest Line:</strong> {feedback.strongestLine}</p>
-          <p><strong>Weakest Line:</strong> {feedback.weakestLine}</p>
-          <p><strong>Comments:</strong> {feedback.comments}</p>
-
-          <div style={{ height: 300 }}>
+        <div style={{ marginTop: 40 }}>
+          <h3>Feedback Summary</h3>
+          <ul>
+            <li><strong>Confidence:</strong> {feedback.confidence}</li>
+            <li><strong>Clarity:</strong> {feedback.clarity}</li>
+            <li><strong>Structure:</strong> {feedback.structure}</li>
+            <li><strong>Authenticity:</strong> {feedback.authenticity}</li>
+            <li><strong>Persuasiveness:</strong> {feedback.persuasiveness}</li>
+            <li><strong>Strongest Line:</strong> {feedback.strongestLine}</li>
+            <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
+            <li><strong>Comments:</strong> {feedback.comments}</li>
+          </ul>
+          <div style={{ height: 300, marginTop: 30 }}>
             <ResponsiveContainer>
               <RadarChart data={radarData}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="subject" />
-                <PolarRadiusAxis domain={[0, 10]} />
+                <PolarRadiusAxis angle={30} domain={[0, 10]} />
                 <Radar name="Feedback" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
                 <Tooltip />
               </RadarChart>
@@ -240,16 +254,17 @@ export default function Home() {
       )}
 
       {history.length > 0 && (
-        <div style={{ marginTop: 40 }}>
-          <h2>Pitch History</h2>
-          {history.map((entry) => (
-            <div key={entry.id} style={{ border: '1px solid #ddd', padding: 12, borderRadius: 6, marginBottom: 12 }}>
-              <p><strong>Pitch:</strong> {entry.pitch}</p>
-              <p><strong>Confidence:</strong> {entry.feedback?.confidence}</p>
-              <p><strong>Clarity:</strong> {entry.feedback?.clarity}</p>
-              <p><strong>Date:</strong> {entry.timestamp?.toDate().toLocaleString() || 'N/A'}</p>
-            </div>
-          ))}
+        <div style={{ marginTop: 50 }}>
+          <h3>Pitch History</h3>
+          <ul style={{ maxHeight: 200, overflowY: 'auto', paddingLeft: 0 }}>
+            {history.map(entry => (
+              <li key={entry.id} style={{ background: '#fff', padding: 10, marginBottom: 12, borderRadius: 8 }}>
+                <p><strong>Pitch:</strong> {entry.pitch}</p>
+                <p><strong>Confidence:</strong> {entry.feedback?.confidence}</p>
+                <p><strong>Date:</strong> {entry.timestamp?.toDate().toLocaleString() || 'N/A'}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
