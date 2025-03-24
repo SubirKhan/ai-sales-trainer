@@ -1,4 +1,3 @@
-// index.tsx
 import { useState, useRef, useEffect } from 'react';
 import {
   signInWithPopup, GoogleAuthProvider, signOut,
@@ -49,7 +48,13 @@ export default function Home() {
         const snapshot = await getDocs(q);
         const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setHistory(results);
-        setInsights(generateTrainingInsights(results));
+
+        console.log("📦 Loaded pitch history:", results);
+        console.log("🧪 Calculating insights from:", results);
+
+        const insightsGenerated = generateTrainingInsights(results);
+        console.log("🧠 Insights returned:", insightsGenerated);
+        setInsights(insightsGenerated);
       }
     });
     return () => unsubscribe();
@@ -59,8 +64,8 @@ export default function Home() {
     if (!pitches || pitches.length < 3) return [];
 
     const personaScores: any = {};
-    const recent = pitches.slice(0, 5); // latest 5
-    const older = pitches.slice(-5); // earliest 5
+    const recent = pitches.slice(0, 5);
+    const older = pitches.slice(-5);
 
     pitches.forEach(p => {
       const persona = p.persona || 'Unknown Persona';
@@ -92,7 +97,7 @@ export default function Home() {
       for (const metric in byMetric) {
         const avg = byMetric[metric] / count;
         if (avg < 6) {
-          insights.push(`🧠 You often score lower on **${metric}** when pitching to **${persona}**.`);
+          insights.push(`🧠 You often score lower on ${metric} when pitching to ${persona}.`);
         }
       }
     }
@@ -105,7 +110,7 @@ export default function Home() {
       if (Math.abs(diff) > 1) {
         const direction = diff > 0 ? 'improved' : 'dropped';
         const emoji = diff > 0 ? '📈' : '📉';
-        insights.push(`${emoji} Your **${metric}** score has ${direction} by **${Math.abs(diff).toFixed(1)}** in recent pitches.`);
+        insights.push(`${emoji} Your ${metric} score has ${direction} by ${Math.abs(diff).toFixed(1)} in recent pitches.`);
       }
     });
 
@@ -248,7 +253,7 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: '18px', boxShadow: '0 4px 18px rgba(0,0,0,0.08)' }}>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40 }}>
       <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
@@ -312,16 +317,13 @@ export default function Home() {
             <li><strong>Comments:</strong> {feedback.comments}</li>
           </ul>
 
-          {/* 📊 Training Insights */}
-          {insights.length > 0 && (
-            <div style={{
-              backgroundColor: '#fefefe',
-              padding: '16px',
-              borderRadius: '12px',
-              marginTop: '30px',
-              boxShadow: '0 0 10px rgba(0,0,0,0.06)'
-            }}>
+          {/* 📊 Training Insights (force visible) */}
+          {true && (
+            <div style={{ backgroundColor: '#fefefe', padding: '16px', borderRadius: '12px', marginTop: '30px', boxShadow: '0 0 10px rgba(0,0,0,0.06)' }}>
               <h4 style={{ marginBottom: 12 }}>📊 Training Insights</h4>
+              {insights.length === 0 && (
+                <p style={{ color: '#cc0000' }}>⚠️ No insights generated. Check console logs for data.</p>
+              )}
               <ul style={{ paddingLeft: 20 }}>
                 {insights.map((line, idx) => (
                   <li key={idx} style={{ marginBottom: 8 }}>{line}</li>
@@ -341,21 +343,6 @@ export default function Home() {
               </RadarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      )}
-
-      {history.length > 0 && (
-        <div style={{ marginTop: 50 }}>
-          <h3>Pitch History</h3>
-          <ul style={{ maxHeight: 200, overflowY: 'auto', paddingLeft: 0 }}>
-            {history.map(entry => (
-              <li key={entry.id} style={{ background: '#fff', padding: 10, marginBottom: 12, borderRadius: 8 }}>
-                <p><strong>Pitch:</strong> {entry.pitch}</p>
-                <p><strong>Confidence:</strong> {entry.feedback?.confidence}</p>
-                <p><strong>Date:</strong> {entry.timestamp?.toDate().toLocaleString() || 'N/A'}</p>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>
