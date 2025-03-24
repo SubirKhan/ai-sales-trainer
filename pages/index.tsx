@@ -33,8 +33,17 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [insights, setInsights] = useState<string[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    setObjection('');
+  }, [pitch, roleplay]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -68,27 +77,6 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        const q = query(
-          collection(db, 'pitchHistory'),
-          where('uid', '==', currentUser.uid),
-          orderBy('timestamp', 'desc')
-        );
-        const snapshot = await getDocs(q);
-        const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setHistory(results);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    setObjection('');
-  }, [pitch, roleplay]);
-
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
@@ -99,6 +87,7 @@ export default function Home() {
       }
 
       const systemPrompt = `You are an expert AI sales coach. Be highly critical and honest. Evaluate the user’s sales pitch as if they were pitching to a ${persona}. Penalize vague, short, or generic phrases. Only give high scores if the pitch shows clear structure, relevance, credibility, and persuasive reasoning. Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
+
       const userPrompt = `Sales Pitch: ${pitch}${roleplay ? `\nObjection: ${simulatedObjection}` : ''}`;
 
       const response = await fetch('/api/feedback', {
@@ -114,16 +103,6 @@ export default function Home() {
 
       const data = await response.json();
       setFeedback(data);
-
-      if (user) {
-        await addDoc(collection(db, 'pitchHistory'), {
-          uid: user.uid,
-          pitch,
-          feedback: data,
-          persona,
-          timestamp: serverTimestamp()
-        });
-      }
     } catch (err: any) {
       alert('Error getting feedback: ' + err.message);
     }
@@ -162,6 +141,26 @@ export default function Home() {
     recognitionRef.current = recognition;
   };
 
+  const toneOptions = [
+    { value: 'friendly', label: 'Friendly Mentor' },
+    { value: 'tough', label: 'Tough Coach' },
+    { value: 'peer', label: 'Peer-Level Trainer' },
+    { value: 'closer', label: 'Closer' },
+    { value: 'best', label: 'Best Salesman in the World' }
+  ];
+
+  const personaOptions = [
+    { value: 'new', label: 'Completely New Person' },
+    { value: 'decision', label: 'Decision Maker' },
+    { value: 'skeptical', label: 'Skeptical Prospect' },
+    { value: 'executive', label: 'Time-Crunched Executive' },
+    { value: 'budget', label: 'Budget-Conscious Buyer' },
+    { value: 'technical', label: 'Technical Expert' },
+    { value: 'emotional', label: 'Emotional Buyer' },
+    { value: 'warm', label: 'Warm Lead' },
+    { value: 'competitor', label: 'Competitor (Fishing for Info)' }
+  ];
+
   const radarData = feedback
     ? Object.entries(feedback)
         .filter(([key]) => initialScores.hasOwnProperty(key))
@@ -169,8 +168,8 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: '18px', boxShadow: '0 4px 18px rgba(0,0,0,0.08)' }}>
-      <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30, color: '#2c3e50' }}>AI Sales Trainer</h1>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: 18 }}>
+      <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -192,7 +191,7 @@ export default function Home() {
         onChange={(e) => setPitch(e.target.value)}
         placeholder="Your pitch here..."
         rows={5}
-        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20, backgroundColor: '#ffffff', border: '1px solid #ccc' }}
+        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
       />
 
       {objection && (
@@ -201,16 +200,25 @@ export default function Home() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
-          {['friendly', 'tough', 'peer', 'closer', 'best'].map(value => <option key={value} value={value}>{value}</option>)}
-        </select>
-        <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
-          {['new', 'decision', 'skeptical', 'executive', 'budget', 'technical', 'emotional', 'warm', 'competitor'].map(value => <option key={value} value={value}>{value}</option>)}
-        </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} /> Roleplay Objection
-        </label>
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 20 }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>Feedback Tone:</label>
+          <select value={coachTone} onChange={(e) => setCoachTone(e.target.value)} style={{ width: '100%', padding: 8 }}>
+            {toneOptions.map(opt => <option key={opt.value} value={opt.value} title={opt.label}>{opt.label}</option>)}
+          </select>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>Who Are You Pitching To?</label>
+          <select value={persona} onChange={(e) => setPersona(e.target.value)} style={{ width: '100%', padding: 8 }}>
+            {personaOptions.map(opt => <option key={opt.value} value={opt.value} title={opt.label}>{opt.label}</option>)}
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} />
+          <label style={{ fontWeight: 'bold' }}>Roleplay Objection</label>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
@@ -232,6 +240,7 @@ export default function Home() {
             <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
             <li><strong>Comments:</strong> {feedback.comments}</li>
           </ul>
+
           <div style={{ height: 300, marginTop: 30 }}>
             <ResponsiveContainer>
               <RadarChart data={radarData}>
