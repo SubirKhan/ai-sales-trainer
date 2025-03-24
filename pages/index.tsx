@@ -1,3 +1,4 @@
+// index.tsx
 import { useState, useRef, useEffect } from 'react';
 import {
   signInWithPopup, GoogleAuthProvider, signOut,
@@ -34,6 +35,7 @@ export default function Home() {
   const recognitionRef = useRef<any>(null);
   const [user, setUser] = useState<User | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [insights, setInsights] = useState<string[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -47,10 +49,68 @@ export default function Home() {
         const snapshot = await getDocs(q);
         const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setHistory(results);
+        setInsights(generateTrainingInsights(results));
       }
     });
     return () => unsubscribe();
   }, []);
+
+  const generateTrainingInsights = (pitches: any[]) => {
+    if (!pitches || pitches.length < 3) return [];
+
+    const personaScores: any = {};
+    const recent = pitches.slice(0, 5); // latest 5
+    const older = pitches.slice(-5); // earliest 5
+
+    pitches.forEach(p => {
+      const persona = p.persona || 'Unknown Persona';
+      if (!personaScores[persona]) {
+        personaScores[persona] = {
+          count: 0,
+          byMetric: {
+            confidence: 0,
+            clarity: 0,
+            structure: 0,
+            authenticity: 0,
+            persuasiveness: 0
+          }
+        };
+      }
+
+      Object.keys(p.feedback).forEach(metric => {
+        if (personaScores[persona].byMetric[metric] !== undefined) {
+          personaScores[persona].byMetric[metric] += p.feedback[metric];
+        }
+      });
+      personaScores[persona].count += 1;
+    });
+
+    const insights: string[] = [];
+
+    for (const persona in personaScores) {
+      const { byMetric, count } = personaScores[persona];
+      for (const metric in byMetric) {
+        const avg = byMetric[metric] / count;
+        if (avg < 6) {
+          insights.push(`🧠 You often score lower on **${metric}** when pitching to **${persona}**.`);
+        }
+      }
+    }
+
+    const metrics = ['confidence', 'clarity', 'structure', 'authenticity', 'persuasiveness'];
+    metrics.forEach(metric => {
+      const avgOld = older.reduce((sum, p) => sum + (p.feedback?.[metric] || 0), 0) / older.length;
+      const avgRecent = recent.reduce((sum, p) => sum + (p.feedback?.[metric] || 0), 0) / recent.length;
+      const diff = avgRecent - avgOld;
+      if (Math.abs(diff) > 1) {
+        const direction = diff > 0 ? 'improved' : 'dropped';
+        const emoji = diff > 0 ? '📈' : '📉';
+        insights.push(`${emoji} Your **${metric}** score has ${direction} by **${Math.abs(diff).toFixed(1)}** in recent pitches.`);
+      }
+    });
+
+    return insights;
+  };
 
   useEffect(() => {
     setObjection('');
@@ -119,6 +179,7 @@ export default function Home() {
           uid: user.uid,
           pitch,
           feedback: data,
+          persona,
           timestamp: serverTimestamp()
         });
       }
@@ -250,6 +311,25 @@ export default function Home() {
             <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
             <li><strong>Comments:</strong> {feedback.comments}</li>
           </ul>
+
+          {/* 📊 Training Insights */}
+          {insights.length > 0 && (
+            <div style={{
+              backgroundColor: '#fefefe',
+              padding: '16px',
+              borderRadius: '12px',
+              marginTop: '30px',
+              boxShadow: '0 0 10px rgba(0,0,0,0.06)'
+            }}>
+              <h4 style={{ marginBottom: 12 }}>📊 Training Insights</h4>
+              <ul style={{ paddingLeft: 20 }}>
+                {insights.map((line, idx) => (
+                  <li key={idx} style={{ marginBottom: 8 }}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div style={{ height: 300, marginTop: 30 }}>
             <ResponsiveContainer>
               <RadarChart data={radarData}>
