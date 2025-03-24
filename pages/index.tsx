@@ -80,9 +80,6 @@ export default function Home() {
         const snapshot = await getDocs(q);
         const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setHistory(results);
-
-        const insightsGenerated = generateTrainingInsights(results);
-        setInsights(insightsGenerated);
       }
     });
     return () => unsubscribe();
@@ -91,59 +88,6 @@ export default function Home() {
   useEffect(() => {
     setObjection('');
   }, [pitch, roleplay]);
-
-  const generateTrainingInsights = (pitches: any[]) => {
-    if (!pitches || pitches.length < 1) return [];
-
-    const personaScores: any = {};
-    const recent = pitches.slice(0, 5);
-    const older = pitches.slice(-5);
-    const metrics = Object.keys(initialScores);
-
-    pitches.forEach(p => {
-      const personaKey = p.persona || 'Unknown Persona';
-      if (!personaScores[personaKey]) {
-        personaScores[personaKey] = {
-          count: 0,
-          byMetric: { ...initialScores }
-        };
-      }
-
-      metrics.forEach(metric => {
-        const val = Number(p.feedback?.[metric]);
-        if (!isNaN(val)) {
-          personaScores[personaKey].byMetric[metric] += val;
-        }
-      });
-
-      personaScores[personaKey].count += 1;
-    });
-
-    const insights: string[] = [];
-
-    for (const persona in personaScores) {
-      const { byMetric, count } = personaScores[persona];
-      for (const metric of metrics) {
-        const avg = byMetric[metric] / count;
-        if (avg < 6) {
-          insights.push(`🧠 You often score lower on ${metric} when pitching to ${persona}.`);
-        }
-      }
-    }
-
-    metrics.forEach(metric => {
-      const avgOld = older.reduce((sum, p) => sum + (Number(p.feedback?.[metric]) || 0), 0) / older.length;
-      const avgRecent = recent.reduce((sum, p) => sum + (Number(p.feedback?.[metric]) || 0), 0) / recent.length;
-      const diff = avgRecent - avgOld;
-      if (Math.abs(diff) > 1) {
-        const direction = diff > 0 ? 'improved' : 'dropped';
-        const emoji = diff > 0 ? '📈' : '📉';
-        insights.push(`${emoji} Your ${metric} score has ${direction} by ${Math.abs(diff).toFixed(1)} in recent pitches.`);
-      }
-    });
-
-    return insights;
-  };
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -155,7 +99,6 @@ export default function Home() {
       }
 
       const systemPrompt = `You are an expert AI sales coach. Be highly critical and honest. Evaluate the user’s sales pitch as if they were pitching to a ${persona}. Penalize vague, short, or generic phrases. Only give high scores if the pitch shows clear structure, relevance, credibility, and persuasive reasoning. Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
-
       const userPrompt = `Sales Pitch: ${pitch}${roleplay ? `\nObjection: ${simulatedObjection}` : ''}`;
 
       const response = await fetch('/api/feedback', {
@@ -178,18 +121,6 @@ export default function Home() {
           pitch,
           feedback: data,
           persona,
-          timestamp: serverTimestamp()
-        });
-
-        await addDoc(collection(db, 'debugPitchLogs'), {
-          uid: user.uid,
-          email: user.email,
-          pitch,
-          feedback: data,
-          persona,
-          tone: coachTone,
-          objection: simulatedObjection || null,
-          roleplay,
           timestamp: serverTimestamp()
         });
       }
@@ -231,26 +162,6 @@ export default function Home() {
     recognitionRef.current = recognition;
   };
 
-  const toneOptions = [
-    { value: 'friendly', label: 'Friendly Mentor' },
-    { value: 'tough', label: 'Tough Coach' },
-    { value: 'peer', label: 'Peer-Level Trainer' },
-    { value: 'closer', label: 'Closer' },
-    { value: 'best', label: 'Best Salesman in the World' }
-  ];
-
-  const personaOptions = [
-    { value: 'new', label: 'Completely New Person' },
-    { value: 'decision', label: 'Decision Maker' },
-    { value: 'skeptical', label: 'Skeptical Prospect' },
-    { value: 'executive', label: 'Time-Crunched Executive' },
-    { value: 'budget', label: 'Budget-Conscious Buyer' },
-    { value: 'technical', label: 'Technical Expert' },
-    { value: 'emotional', label: 'Emotional Buyer' },
-    { value: 'warm', label: 'Warm Lead' },
-    { value: 'competitor', label: 'Competitor (Fishing for Info)' }
-  ];
-
   const radarData = feedback
     ? Object.entries(feedback)
         .filter(([key]) => initialScores.hasOwnProperty(key))
@@ -258,8 +169,8 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40 }}>
-      <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: '18px', boxShadow: '0 4px 18px rgba(0,0,0,0.08)' }}>
+      <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30, color: '#2c3e50' }}>AI Sales Trainer</h1>
 
       {!user ? (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -281,7 +192,7 @@ export default function Home() {
         onChange={(e) => setPitch(e.target.value)}
         placeholder="Your pitch here..."
         rows={5}
-        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20 }}
+        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, marginBottom: 20, backgroundColor: '#ffffff', border: '1px solid #ccc' }}
       />
 
       {objection && (
@@ -292,10 +203,10 @@ export default function Home() {
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
         <select value={coachTone} onChange={e => setCoachTone(e.target.value)} style={{ flex: 1, padding: 8 }}>
-          {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          {['friendly', 'tough', 'peer', 'closer', 'best'].map(value => <option key={value} value={value}>{value}</option>)}
         </select>
         <select value={persona} onChange={e => setPersona(e.target.value)} style={{ flex: 1, padding: 8 }}>
-          {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          {['new', 'decision', 'skeptical', 'executive', 'budget', 'technical', 'emotional', 'warm', 'competitor'].map(value => <option key={value} value={value}>{value}</option>)}
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input type="checkbox" checked={roleplay} onChange={e => setRoleplay(e.target.checked)} /> Roleplay Objection
@@ -321,27 +232,13 @@ export default function Home() {
             <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
             <li><strong>Comments:</strong> {feedback.comments}</li>
           </ul>
-
-          <div style={{ backgroundColor: '#fefefe', padding: '16px', borderRadius: '12px', marginTop: '30px', boxShadow: '0 0 10px rgba(0,0,0,0.06)' }}>
-            <h4 style={{ marginBottom: 12 }}>📊 Training Insights</h4>
-            {insights.length === 0 ? (
-              <p style={{ color: '#cc0000' }}>⚠️ No insights generated. Submit more pitches to unlock insights.</p>
-            ) : (
-              <ul style={{ paddingLeft: 20 }}>
-                {insights.map((line, idx) => (
-                  <li key={idx} style={{ marginBottom: 8 }}>{line}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-
           <div style={{ height: 300, marginTop: 30 }}>
             <ResponsiveContainer>
               <RadarChart data={radarData}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="subject" />
                 <PolarRadiusAxis angle={30} domain={[0, 10]} />
-                <Radar name="Feedback" dataKey="A" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
+                <Radar name="Feedback" dataKey="A" stroke="#4CAF50" fill="#4CAF50" fillOpacity={0.6} />
                 <Tooltip />
               </RadarChart>
             </ResponsiveContainer>
