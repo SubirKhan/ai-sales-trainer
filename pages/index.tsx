@@ -49,11 +49,7 @@ export default function Home() {
         const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setHistory(results);
 
-        console.log("📦 Loaded pitch history:", results);
-        console.log("🧪 Calculating insights from:", results);
-
         const insightsGenerated = generateTrainingInsights(results);
-        console.log("🧠 Insights returned:", insightsGenerated);
         setInsights(insightsGenerated);
       }
     });
@@ -62,39 +58,33 @@ export default function Home() {
 
   const generateTrainingInsights = (pitches: any[]) => {
     if (!pitches || pitches.length < 1) return [];
-  
+
     const personaScores: any = {};
     const recent = pitches.slice(0, 5);
     const older = pitches.slice(-5);
     const metrics = ['confidence', 'clarity', 'structure', 'authenticity', 'persuasiveness'];
-  
+
     pitches.forEach(p => {
       const personaKey = p.persona || 'Unknown Persona';
       if (!personaScores[personaKey]) {
         personaScores[personaKey] = {
           count: 0,
-          byMetric: {
-            confidence: 0,
-            clarity: 0,
-            structure: 0,
-            authenticity: 0,
-            persuasiveness: 0
-          }
+          byMetric: { confidence: 0, clarity: 0, structure: 0, authenticity: 0, persuasiveness: 0 }
         };
       }
-  
+
       metrics.forEach(metric => {
         const val = Number(p.feedback?.[metric]);
         if (!isNaN(val)) {
           personaScores[personaKey].byMetric[metric] += val;
         }
       });
-  
+
       personaScores[personaKey].count += 1;
     });
-  
+
     const insights: string[] = [];
-  
+
     for (const persona in personaScores) {
       const { byMetric, count } = personaScores[persona];
       for (const metric of metrics) {
@@ -104,7 +94,7 @@ export default function Home() {
         }
       }
     }
-  
+
     metrics.forEach(metric => {
       const avgOld = older.reduce((sum, p) => sum + (Number(p.feedback?.[metric]) || 0), 0) / older.length;
       const avgRecent = recent.reduce((sum, p) => sum + (Number(p.feedback?.[metric]) || 0), 0) / recent.length;
@@ -115,46 +105,13 @@ export default function Home() {
         insights.push(`${emoji} Your ${metric} score has ${direction} by ${Math.abs(diff).toFixed(1)} in recent pitches.`);
       }
     });
-  
+
     return insights;
   };
-  
 
   useEffect(() => {
     setObjection('');
   }, [pitch, roleplay]);
-
-  const handleGoogleSignIn = async () => {
-    try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (err: any) {
-      alert('Google Sign-In failed: ' + err.message);
-    }
-  };
-
-  const handleSignup = async () => {
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-    } catch (err: any) {
-      alert('Signup failed: ' + err.message);
-    }
-  };
-
-  const handleLogin = async () => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (err: any) {
-      alert('Login failed: ' + err.message);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (err: any) {
-      alert('Logout failed: ' + err.message);
-    }
-  };
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -165,7 +122,8 @@ export default function Home() {
         setObjection(simulatedObjection);
       }
 
-      const systemPrompt = `You are an AI sales coach acting as a ${coachTone} coach. Analyze the user's sales pitch as if they were pitching to a ${persona} and return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
+      const systemPrompt = `You are an expert AI sales coach. Be highly critical and honest. Evaluate the user’s sales pitch as if they were pitching to a ${persona}. Penalize vague, short, or generic phrases. Only give high scores if the pitch shows clear structure, relevance, credibility, and persuasive reasoning. Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
+
       const userPrompt = `Sales Pitch: ${pitch}${roleplay ? `\nObjection: ${simulatedObjection}` : ''}`;
 
       const response = await fetch('/api/feedback', {
@@ -188,6 +146,18 @@ export default function Home() {
           pitch,
           feedback: data,
           persona,
+          timestamp: serverTimestamp()
+        });
+
+        await addDoc(collection(db, 'debugPitchLogs'), {
+          uid: user.uid,
+          email: user.email,
+          pitch,
+          feedback: data,
+          persona,
+          tone: coachTone,
+          objection: simulatedObjection || null,
+          roleplay,
           timestamp: serverTimestamp()
         });
       }
@@ -320,20 +290,18 @@ export default function Home() {
             <li><strong>Comments:</strong> {feedback.comments}</li>
           </ul>
 
-          {/* 📊 Training Insights (force visible) */}
-          {true && (
-            <div style={{ backgroundColor: '#fefefe', padding: '16px', borderRadius: '12px', marginTop: '30px', boxShadow: '0 0 10px rgba(0,0,0,0.06)' }}>
-              <h4 style={{ marginBottom: 12 }}>📊 Training Insights</h4>
-              {insights.length === 0 && (
-                <p style={{ color: '#cc0000' }}>⚠️ No insights generated. Check console logs for data.</p>
-              )}
+          <div style={{ backgroundColor: '#fefefe', padding: '16px', borderRadius: '12px', marginTop: '30px', boxShadow: '0 0 10px rgba(0,0,0,0.06)' }}>
+            <h4 style={{ marginBottom: 12 }}>📊 Training Insights</h4>
+            {insights.length === 0 ? (
+              <p style={{ color: '#cc0000' }}>⚠️ No insights generated. Submit more pitches to unlock insights.</p>
+            ) : (
               <ul style={{ paddingLeft: 20 }}>
                 {insights.map((line, idx) => (
                   <li key={idx} style={{ marginBottom: 8 }}>{line}</li>
                 ))}
               </ul>
-            </div>
-          )}
+            )}
+          </div>
 
           <div style={{ height: 300, marginTop: 30 }}>
             <ResponsiveContainer>
