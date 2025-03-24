@@ -61,16 +61,17 @@ export default function Home() {
   }, []);
 
   const generateTrainingInsights = (pitches: any[]) => {
-    if (!pitches || pitches.length < 3) return [];
-
+    if (!pitches || pitches.length < 1) return [];
+  
     const personaScores: any = {};
     const recent = pitches.slice(0, 5);
     const older = pitches.slice(-5);
-
+    const metrics = ['confidence', 'clarity', 'structure', 'authenticity', 'persuasiveness'];
+  
     pitches.forEach(p => {
-      const persona = p.persona || 'Unknown Persona';
-      if (!personaScores[persona]) {
-        personaScores[persona] = {
+      const personaKey = p.persona || 'Unknown Persona';
+      if (!personaScores[personaKey]) {
+        personaScores[personaKey] = {
           count: 0,
           byMetric: {
             confidence: 0,
@@ -81,31 +82,32 @@ export default function Home() {
           }
         };
       }
-
-      Object.keys(p.feedback).forEach(metric => {
-        if (personaScores[persona].byMetric[metric] !== undefined) {
-          personaScores[persona].byMetric[metric] += p.feedback[metric];
+  
+      metrics.forEach(metric => {
+        const val = Number(p.feedback?.[metric]);
+        if (!isNaN(val)) {
+          personaScores[personaKey].byMetric[metric] += val;
         }
       });
-      personaScores[persona].count += 1;
+  
+      personaScores[personaKey].count += 1;
     });
-
+  
     const insights: string[] = [];
-
+  
     for (const persona in personaScores) {
       const { byMetric, count } = personaScores[persona];
-      for (const metric in byMetric) {
+      for (const metric of metrics) {
         const avg = byMetric[metric] / count;
         if (avg < 6) {
           insights.push(`🧠 You often score lower on ${metric} when pitching to ${persona}.`);
         }
       }
     }
-
-    const metrics = ['confidence', 'clarity', 'structure', 'authenticity', 'persuasiveness'];
+  
     metrics.forEach(metric => {
-      const avgOld = older.reduce((sum, p) => sum + (p.feedback?.[metric] || 0), 0) / older.length;
-      const avgRecent = recent.reduce((sum, p) => sum + (p.feedback?.[metric] || 0), 0) / recent.length;
+      const avgOld = older.reduce((sum, p) => sum + (Number(p.feedback?.[metric]) || 0), 0) / older.length;
+      const avgRecent = recent.reduce((sum, p) => sum + (Number(p.feedback?.[metric]) || 0), 0) / recent.length;
       const diff = avgRecent - avgOld;
       if (Math.abs(diff) > 1) {
         const direction = diff > 0 ? 'improved' : 'dropped';
@@ -113,9 +115,10 @@ export default function Home() {
         insights.push(`${emoji} Your ${metric} score has ${direction} by ${Math.abs(diff).toFixed(1)} in recent pitches.`);
       }
     });
-
+  
     return insights;
   };
+  
 
   useEffect(() => {
     setObjection('');
