@@ -36,6 +36,38 @@ export default function Home() {
   const [history, setHistory] = useState<any[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
 
+  const handleGoogleSignIn = async () => {
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (err: any) {
+      alert('Google Sign-In failed: ' + err.message);
+    }
+  };
+
+  const handleSignup = async () => {
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      alert('Signup failed: ' + err.message);
+    }
+  };
+
+  const handleLogin = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      alert('Login failed: ' + err.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err: any) {
+      alert('Logout failed: ' + err.message);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -56,20 +88,24 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    setObjection('');
+  }, [pitch, roleplay]);
+
   const generateTrainingInsights = (pitches: any[]) => {
     if (!pitches || pitches.length < 1) return [];
 
     const personaScores: any = {};
     const recent = pitches.slice(0, 5);
     const older = pitches.slice(-5);
-    const metrics = ['confidence', 'clarity', 'structure', 'authenticity', 'persuasiveness'];
+    const metrics = Object.keys(initialScores);
 
     pitches.forEach(p => {
       const personaKey = p.persona || 'Unknown Persona';
       if (!personaScores[personaKey]) {
         personaScores[personaKey] = {
           count: 0,
-          byMetric: { confidence: 0, clarity: 0, structure: 0, authenticity: 0, persuasiveness: 0 }
+          byMetric: { ...initialScores }
         };
       }
 
@@ -108,10 +144,6 @@ export default function Home() {
 
     return insights;
   };
-
-  useEffect(() => {
-    setObjection('');
-  }, [pitch, roleplay]);
 
   const handleSubmit = async () => {
     setIsLoading(true);
