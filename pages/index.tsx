@@ -35,6 +35,7 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [conversation, setConversation] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [roleplayResponse, setRoleplayResponse] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -44,13 +45,15 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (pitch && roleplay && !isLoading) {
-      generateObjection();
+    // Only generate initial objection when roleplay is first enabled and there's a pitch
+    if (roleplay && pitch.trim() && conversation.length === 0) {
+      generateObjection(pitch);
+      setPitch('');
     } else if (!roleplay) {
       setObjection('');
       setConversation([]);
     }
-  }, [pitch, roleplay]);
+  }, [roleplay]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -84,8 +87,8 @@ export default function Home() {
     }
   };
 
-  const generateObjection = async () => {
-    if (!pitch.trim()) return;
+  const generateObjection = async (userPitch) => {
+    if (!userPitch || !userPitch.trim()) return;
     
     setIsTyping(true);
     try {
@@ -97,7 +100,7 @@ export default function Home() {
         body: JSON.stringify({
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: pitch }
+            { role: 'user', content: userPitch }
           ]
         })
       });
@@ -108,25 +111,23 @@ export default function Home() {
       setObjection(newObjection);
       setConversation(prev => [
         ...prev, 
-        { role: 'user', content: pitch },
+        { role: 'user', content: userPitch },
         { role: 'prospect', content: newObjection }
       ]);
-      
-      // Clear the pitch field after adding to conversation
-      setPitch('');
     } catch (err) {
       console.error("Error generating objection:", err);
       setObjection("I'm not sure about that. Can you tell me more?");
+      setConversation(prev => [
+        ...prev, 
+        { role: 'user', content: userPitch },
+        { role: 'prospect', content: "I'm not sure about that. Can you tell me more?" }
+      ]);
     }
     setIsTyping(false);
   };
 
   const handleSubmit = async () => {
-    if (roleplay && pitch.trim()) {
-      // In roleplay mode, each pitch entry continues the conversation
-      await generateObjection();
-      return;
-    }
+    if (!pitch.trim()) return;
     
     setIsLoading(true);
     try {
@@ -153,19 +154,26 @@ export default function Home() {
     setIsLoading(false);
   };
 
-  const handlePitchChange = (e) => {
-    setPitch(e.target.value);
+  const handleSendRoleplayResponse = () => {
+    if (!roleplayResponse.trim()) return;
+    
+    // Add user message to conversation
+    setConversation(prev => [
+      ...prev,
+      { role: 'user', content: roleplayResponse }
+    ]);
+    
+    // Generate AI response
+    generateObjection(roleplayResponse);
+    
+    // Clear the input field
+    setRoleplayResponse('');
   };
 
-  const handleRoleplayToggle = (e) => {
-    const isEnabled = e.target.checked;
-    setRoleplay(isEnabled);
-    if (!isEnabled) {
-      setConversation([]);
-      setObjection('');
-    } else if (pitch.trim()) {
-      // If there's already a pitch when enabling roleplay, start the conversation
-      generateObjection();
+  const handleRoleplayKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendRoleplayResponse();
     }
   };
 
@@ -176,7 +184,7 @@ export default function Home() {
     doc.setFont('helvetica');
     doc.setFontSize(16);
     
-    if (roleplay) {
+    if (roleplay && conversation.length > 0) {
       doc.text('AI Sales Roleplay Conversation', 20, 20);
       doc.setFontSize(12);
       
@@ -251,7 +259,7 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 900, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: 18 }}>
+    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 1200, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: 18 }}>
       <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
@@ -288,7 +296,7 @@ export default function Home() {
           <input 
             type="checkbox" 
             checked={roleplay} 
-            onChange={handleRoleplayToggle} 
+            onChange={(e) => setRoleplay(e.target.checked)} 
             id="roleplay-toggle"
           />
           <label htmlFor="roleplay-toggle" style={{ fontWeight: 'bold' }}>
@@ -297,116 +305,145 @@ export default function Home() {
         </div>
       </div>
 
-      {roleplay && (
-        <div style={{ marginBottom: 20 }}>
-          <h3>Roleplay Conversation:</h3>
-          <div style={{ 
-            backgroundColor: '#f0f8ff', 
-            borderRadius: 8, 
-            padding: 16, 
-            maxHeight: 300, 
-            overflowY: 'auto',
-            border: '1px solid #e1e4e8'
-          }}>
-            {conversation.length > 0 ? (
-              conversation.map((message, index) => (
-                <div key={index} style={{ 
-                  marginBottom: 12,
-                  backgroundColor: message.role === 'user' ? '#e3f2fd' : '#fff',
-                  padding: 10,
-                  borderRadius: 6,
-                  maxWidth: '80%',
-                  marginLeft: message.role === 'user' ? 'auto' : '0'
-                }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
-                    {message.role === 'user' ? 'You' : `${personaOptions.find(p => p.value === persona)?.label || 'Prospect'}`}:
-                  </div>
-                  <div>{message.content}</div>
-                </div>
-              ))
-            ) : (
-              <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>
-                Start the conversation by entering your pitch below
-              </div>
-            )}
-            {isTyping && (
-              <div style={{ padding: 10, fontStyle: 'italic', color: '#666' }}>
-                Prospect is typing...
-              </div>
-            )}
+      <div style={{ display: 'flex', gap: 20, flexWrap: roleplay ? 'nowrap' : 'wrap' }}>
+        {/* Left side - Original pitch and feedback section */}
+        <div style={{ flex: roleplay ? 1 : '100%', minWidth: roleplay ? 400 : 'auto' }}>
+          <textarea
+            value={pitch}
+            onChange={(e) => setPitch(e.target.value)}
+            placeholder="Your pitch here..."
+            rows={5}
+            style={{ 
+              width: '100%', 
+              padding: 12, 
+              fontSize: 16, 
+              borderRadius: 8, 
+              marginBottom: 20,
+              resize: 'vertical'
+            }}
+          />
+
+          {objection && !roleplay && (
+            <div style={{ 
+              backgroundColor: '#fff3cd', 
+              padding: '12px 16px', 
+              borderRadius: '8px', 
+              marginBottom: 20, 
+              border: '1px solid #ffeeba' 
+            }}>
+              <strong>Objection:</strong> {objection}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <button onClick={handleSubmit} disabled={isLoading}>
+              {isLoading ? 'Analyzing...' : 'Submit Pitch'}
+            </button>
+            <button onClick={startVoice}>Use Voice</button>
+            <button onClick={exportToPDF} disabled={!feedback && conversation.length === 0}>Download PDF</button>
           </div>
-        </div>
-      )}
 
-      <div style={{ position: 'relative', marginBottom: 20 }}>
-        <textarea
-          value={pitch}
-          onChange={handlePitchChange}
-          placeholder={roleplay ? "Enter your response..." : "Your pitch here..."}
-          rows={5}
-          style={{ 
-            width: '100%', 
-            padding: 12, 
-            fontSize: 16, 
-            borderRadius: 8,
-            resize: 'vertical'
-          }}
-        />
-        
-        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-          <button 
-            onClick={roleplay ? generateObjection : handleSubmit} 
-            disabled={isLoading || isTyping}
-          >
-            {isLoading ? 'Processing...' : (roleplay ? 'Send Response' : 'Get Feedback')}
-          </button>
-          <button onClick={startVoice}>Use Voice</button>
-          <button onClick={exportToPDF} disabled={roleplay ? conversation.length === 0 : !feedback}>
-            {roleplay ? 'Export Conversation' : 'Download Feedback'}
-          </button>
-        </div>
-      </div>
+          {feedback && (
+            <div style={{ marginTop: 20 }}>
+              <h3>Feedback Summary:</h3>
+              <ul style={{ marginBottom: 20 }}>
+                <li><strong>Confidence:</strong> {feedback.confidence}</li>
+                <li><strong>Clarity:</strong> {feedback.clarity}</li>
+                <li><strong>Structure:</strong> {feedback.structure}</li>
+                <li><strong>Authenticity:</strong> {feedback.authenticity}</li>
+                <li><strong>Persuasiveness:</strong> {feedback.persuasiveness}</li>
+                <li><strong>Strongest Line:</strong> {feedback.strongestLine}</li>
+                <li><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
+                <li><strong>Comments:</strong> {feedback.comments}</li>
+              </ul>
 
-      {!roleplay && feedback && (
-        <div style={{ marginTop: 40 }}>
-          <h3>Feedback Summary:</h3>
-          <div style={{ 
-            backgroundColor: '#fff', 
-            borderRadius: 8, 
-            padding: 20,
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <ul style={{ listStyleType: 'none', padding: 0 }}>
-              <li style={{ marginBottom: 8 }}><strong>Confidence:</strong> {feedback.confidence}</li>
-              <li style={{ marginBottom: 8 }}><strong>Clarity:</strong> {feedback.clarity}</li>
-              <li style={{ marginBottom: 8 }}><strong>Structure:</strong> {feedback.structure}</li>
-              <li style={{ marginBottom: 8 }}><strong>Authenticity:</strong> {feedback.authenticity}</li>
-              <li style={{ marginBottom: 8 }}><strong>Persuasiveness:</strong> {feedback.persuasiveness}</li>
-              <li style={{ marginBottom: 8 }}><strong>Strongest Line:</strong> {feedback.strongestLine}</li>
-              <li style={{ marginBottom: 8 }}><strong>Weakest Line:</strong> {feedback.weakestLine}</li>
-            </ul>
-            
-            <div style={{ marginTop: 16 }}>
-              <strong>Coach Comments:</strong>
-              <p style={{ backgroundColor: '#f9f9f9', padding: 12, borderRadius: 6, marginTop: 8 }}>
-                {feedback.comments}
-              </p>
+              <div style={{ height: 300, marginTop: 30 }}>
+                <ResponsiveContainer>
+                  <RadarChart data={radarData}>
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="subject" />
+                    <PolarRadiusAxis angle={30} domain={[0, 10]} />
+                    <Radar name="Feedback" dataKey="A" stroke="#4CAF50" fill="#4CAF50" fillOpacity={0.6} />
+                    <Tooltip />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right side - Interactive roleplay conversation */}
+        {roleplay && (
+          <div style={{ flex: 1, minWidth: 400 }}>
+            <h3>Roleplay Conversation:</h3>
+            <div style={{ 
+              backgroundColor: '#f0f8ff', 
+              borderRadius: 8, 
+              padding: 16, 
+              height: 400, 
+              overflowY: 'auto',
+              border: '1px solid #e1e4e8',
+              marginBottom: 12
+            }}>
+              {conversation.length > 0 ? (
+                conversation.map((message, index) => (
+                  <div key={index} style={{ 
+                    marginBottom: 12,
+                    backgroundColor: message.role === 'user' ? '#e3f2fd' : '#fff',
+                    padding: 10,
+                    borderRadius: 6,
+                    maxWidth: '80%',
+                    marginLeft: message.role === 'user' ? 'auto' : '0'
+                  }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
+                      {message.role === 'user' ? 'You' : `${personaOptions.find(p => p.value === persona)?.label || 'Prospect'}`}:
+                    </div>
+                    <div>{message.content}</div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>
+                  Enter your initial pitch in the main pitch area and enable roleplay to start the conversation
+                </div>
+              )}
+              {isTyping && (
+                <div style={{ padding: 10, fontStyle: 'italic', color: '#666' }}>
+                  Prospect is typing...
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'stretch' }}>
+              <textarea
+                value={roleplayResponse}
+                onChange={(e) => setRoleplayResponse(e.target.value)}
+                onKeyPress={handleRoleplayKeyPress}
+                placeholder="Type your response..."
+                style={{ 
+                  flex: 1, 
+                  padding: 10, 
+                  fontSize: 16, 
+                  borderRadius: '8px 0 0 8px', 
+                  resize: 'none',
+                  minHeight: 60
+                }}
+              />
+              <button 
+                onClick={handleSendRoleplayResponse}
+                disabled={isTyping || !roleplayResponse.trim()}
+                style={{ 
+                  borderRadius: '0 8px 8px 0',
+                  border: '1px solid #ccc',
+                  borderLeft: 'none',
+                  padding: '0 16px'
+                }}
+              >
+                Send
+              </button>
             </div>
           </div>
-
-          <div style={{ height: 300, marginTop: 30 }}>
-            <ResponsiveContainer>
-              <RadarChart data={radarData}>
-                <PolarGrid />
-                <PolarAngleAxis dataKey="subject" />
-                <PolarRadiusAxis angle={30} domain={[0, 10]} />
-                <Radar name="Feedback" dataKey="A" stroke="#4CAF50" fill="#4CAF50" fillOpacity={0.6} />
-                <Tooltip />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
