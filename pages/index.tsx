@@ -171,11 +171,12 @@ export default function Home() {
       { role: 'user', content: roleplayResponse }
     ]);
     
-    // Generate AI response
-    generateObjection(roleplayResponse);
-    
-    // Clear the input field
+    // Save the response and clear the input field
+    const userMessage = roleplayResponse;
     setRoleplayResponse('');
+    
+    // Generate AI response after sending the user message
+    generateObjection(userMessage);
   };
 
   const handleRoleplayKeyPress = (e) => {
