@@ -47,13 +47,21 @@ export default function Home() {
   useEffect(() => {
     // Only generate initial objection when roleplay is first enabled and there's a pitch
     if (roleplay && pitch.trim() && conversation.length === 0) {
-      generateObjection(pitch);
-      setPitch('');
+      // When first enabling roleplay with a pitch, generate the initial objection
+      handleInitialObjection(pitch);
     } else if (!roleplay) {
+      // Reset when disabling roleplay
       setObjection('');
       setConversation([]);
     }
   }, [roleplay]);
+
+  const handleInitialObjection = async (userPitch) => {
+    if (!userPitch || !userPitch.trim()) return;
+    
+    generateObjection(userPitch);
+    setPitch(''); // Clear the pitch input after using it
+  };
 
   const handleGoogleSignIn = async () => {
     try {
@@ -87,8 +95,8 @@ export default function Home() {
     }
   };
 
-  const generateObjection = async (userPitch) => {
-    if (!userPitch || !userPitch.trim()) return;
+  const generateObjection = async (userMessage) => {
+    if (!userMessage || !userMessage.trim()) return;
     
     setIsTyping(true);
     try {
@@ -100,7 +108,7 @@ export default function Home() {
         body: JSON.stringify({
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPitch }
+            { role: 'user', content: userMessage }
           ]
         })
       });
@@ -111,7 +119,7 @@ export default function Home() {
       setObjection(newObjection);
       setConversation(prev => [
         ...prev, 
-        { role: 'user', content: userPitch },
+        { role: 'user', content: userMessage },
         { role: 'prospect', content: newObjection }
       ]);
     } catch (err) {
@@ -119,7 +127,7 @@ export default function Home() {
       setObjection("I'm not sure about that. Can you tell me more?");
       setConversation(prev => [
         ...prev, 
-        { role: 'user', content: userPitch },
+        { role: 'user', content: userMessage },
         { role: 'prospect', content: "I'm not sure about that. Can you tell me more?" }
       ]);
     }
