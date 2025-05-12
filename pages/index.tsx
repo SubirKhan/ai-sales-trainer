@@ -53,16 +53,18 @@ export default function Home() {
       setIsFirstRoleplay(true);
       setRoleplayStarted(false);
       setConversation([]);
+      setPitch(''); // Clear pitch input when enabling roleplay
     } else {
       // Reset when disabling roleplay
       setObjection('');
       setConversation([]);
       setRoleplayStarted(false);
+      setRoleplayResponse(''); // Clear roleplay response when disabling
     }
   }, [roleplay]);
 
-  // New function to handle initial roleplay setup
-  const setupInitialRoleplay = () => {
+  // Function to handle initial roleplay setup - only called when explicitly triggered
+  const startRoleplay = () => {
     if (!roleplayStarted && pitch.trim()) {
       // Start roleplay with user's initial pitch
       setConversation([{ role: 'user', content: pitch }]);
@@ -187,8 +189,8 @@ export default function Home() {
     if (!pitch.trim()) return;
     
     if (roleplay && !roleplayStarted) {
-      // If in roleplay mode and it's not started yet, set up the roleplay
-      setupInitialRoleplay();
+      // If in roleplay mode and it's not started yet, start the roleplay
+      startRoleplay();
       return;
     }
     
@@ -217,14 +219,9 @@ export default function Home() {
     setIsLoading(false);
   };
 
+  // Modified to ensure messages are only sent when explicitly triggered
   const handleSendRoleplayResponse = () => {
     if (!roleplayResponse.trim()) return;
-    
-    // Check if roleplay hasn't started yet
-    if (!roleplayStarted && pitch.trim()) {
-      setupInitialRoleplay();
-      return;
-    }
     
     // Only proceed if roleplay has been started properly
     if (roleplayStarted) {
@@ -411,7 +408,7 @@ export default function Home() {
           <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
             <button 
               onClick={handleSubmit} 
-              disabled={isLoading || (!pitch.trim() && !roleplayStarted)}
+              disabled={isLoading || !pitch.trim()}
             >
               {isLoading ? 'Analyzing...' : (roleplay && !roleplayStarted) ? 'Start Roleplay' : 'Submit Pitch'}
             </button>
@@ -419,7 +416,7 @@ export default function Home() {
             <button onClick={exportToPDF} disabled={!feedback && conversation.length === 0}>Download PDF</button>
           </div>
 
-          {feedback && (
+          {feedback && !roleplay && (
             <div style={{ marginTop: 20 }}>
               <h3>Feedback Summary:</h3>
               <ul style={{ marginBottom: 20 }}>
@@ -479,7 +476,7 @@ export default function Home() {
                 ))
               ) : (
                 <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>
-                  {!roleplayStarted ? 
+                  {roleplay ? 
                     "Enter your initial pitch in the main pitch area and click 'Start Roleplay' to begin" : 
                     "No conversation yet"}
                 </div>
@@ -496,14 +493,15 @@ export default function Home() {
                 value={roleplayResponse}
                 onChange={(e) => setRoleplayResponse(e.target.value)}
                 onKeyPress={handleRoleplayKeyPress}
-                placeholder="Type your response..."
+                placeholder={roleplayStarted ? "Type your response..." : "Start roleplay first to enable this input"}
                 style={{ 
                   flex: 1, 
                   padding: 10, 
                   fontSize: 16, 
                   borderRadius: '8px 0 0 8px', 
                   resize: 'none',
-                  minHeight: 60
+                  minHeight: 60,
+                  opacity: roleplayStarted ? 1 : 0.7
                 }}
                 disabled={!roleplayStarted}
               />
@@ -514,12 +512,19 @@ export default function Home() {
                   borderRadius: '0 8px 8px 0',
                   border: '1px solid #ccc',
                   borderLeft: 'none',
-                  padding: '0 16px'
+                  padding: '0 16px',
+                  opacity: (roleplayStarted && roleplayResponse.trim() && !isTyping) ? 1 : 0.7
                 }}
               >
                 Send
               </button>
             </div>
+            
+            {!roleplayStarted && roleplay && (
+              <div style={{ marginTop: 8, fontSize: 13, color: '#666', textAlign: 'center' }}>
+                Submit your initial pitch to start the roleplay conversation
+              </div>
+            )}
           </div>
         )}
       </div>
