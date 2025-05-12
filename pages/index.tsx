@@ -36,6 +36,8 @@ export default function Home() {
   const [conversation, setConversation] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [roleplayResponse, setRoleplayResponse] = useState('');
+  const [isFirstRoleplay, setIsFirstRoleplay] = useState(true);
+  const [roleplayStarted, setRoleplayStarted] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -44,23 +46,70 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  // Modified roleplay effect to prevent automatic message sending
   useEffect(() => {
-    // Only generate initial objection when roleplay is first enabled and there's a pitch
-    if (roleplay && pitch.trim() && conversation.length === 0) {
-      // When first enabling roleplay with a pitch, generate the initial objection
-      handleInitialObjection(pitch);
-    } else if (!roleplay) {
+    if (roleplay) {
+      // Reset conversation state when enabling roleplay mode
+      setIsFirstRoleplay(true);
+      setRoleplayStarted(false);
+      setConversation([]);
+    } else {
       // Reset when disabling roleplay
       setObjection('');
       setConversation([]);
+      setRoleplayStarted(false);
     }
   }, [roleplay]);
 
-  const handleInitialObjection = async (userPitch) => {
+  // New function to handle initial roleplay setup
+  const setupInitialRoleplay = () => {
+    if (!roleplayStarted && pitch.trim()) {
+      // Start roleplay with user's initial pitch
+      setConversation([{ role: 'user', content: pitch }]);
+      generateInitialObjection(pitch);
+      setRoleplayStarted(true);
+      setIsFirstRoleplay(false);
+      setPitch(''); // Clear pitch input after starting roleplay
+    }
+  };
+
+  const generateInitialObjection = async (userPitch) => {
     if (!userPitch || !userPitch.trim()) return;
     
-    generateObjection(userPitch);
-    setPitch(''); // Clear the pitch input after using it
+    setIsTyping(true);
+    try {
+      const systemPrompt = `You are roleplaying as a ${persona} prospect. Based on the user's sales pitch, generate a realistic objection or question that such a prospect might have. Keep it brief (1-2 sentences) and realistic. Just respond with the objection text only.`;
+
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPitch }
+          ]
+        })
+      });
+
+      const data = await response.json();
+      const newObjection = typeof data === 'string' ? data : (data.content || "That's interesting, but what makes your product different from what I'm currently using?");
+      
+      setObjection(newObjection);
+      // Add prospect's response to conversation
+      setConversation(prev => [
+        ...prev,
+        { role: 'prospect', content: newObjection }
+      ]);
+    } catch (err) {
+      console.error("Error generating objection:", err);
+      const fallbackMessage = "I'm not sure about that. Can you tell me more?";
+      setObjection(fallbackMessage);
+      setConversation(prev => [
+        ...prev,
+        { role: 'prospect', content: fallbackMessage }
+      ]);
+    }
+    setIsTyping(false);
   };
 
   const handleGoogleSignIn = async () => {
@@ -117,18 +166,18 @@ export default function Home() {
       const newObjection = typeof data === 'string' ? data : (data.content || "That's interesting, but what makes your product different from what I'm currently using?");
       
       setObjection(newObjection);
+      // Add prospect's response to conversation
       setConversation(prev => [
         ...prev, 
-        { role: 'user', content: userMessage },
         { role: 'prospect', content: newObjection }
       ]);
     } catch (err) {
       console.error("Error generating objection:", err);
-      setObjection("I'm not sure about that. Can you tell me more?");
+      const fallbackMessage = "I'm not sure about that. Can you tell me more?";
+      setObjection(fallbackMessage);
       setConversation(prev => [
         ...prev, 
-        { role: 'user', content: userMessage },
-        { role: 'prospect', content: "I'm not sure about that. Can you tell me more?" }
+        { role: 'prospect', content: fallbackMessage }
       ]);
     }
     setIsTyping(false);
@@ -136,6 +185,12 @@ export default function Home() {
 
   const handleSubmit = async () => {
     if (!pitch.trim()) return;
+    
+    if (roleplay && !roleplayStarted) {
+      // If in roleplay mode and it's not started yet, set up the roleplay
+      setupInitialRoleplay();
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -165,18 +220,27 @@ export default function Home() {
   const handleSendRoleplayResponse = () => {
     if (!roleplayResponse.trim()) return;
     
-    // Add user message to conversation
-    setConversation(prev => [
-      ...prev,
-      { role: 'user', content: roleplayResponse }
-    ]);
+    // Check if roleplay hasn't started yet
+    if (!roleplayStarted && pitch.trim()) {
+      setupInitialRoleplay();
+      return;
+    }
     
-    // Save the response and clear the input field
-    const userMessage = roleplayResponse;
-    setRoleplayResponse('');
-    
-    // Generate AI response after sending the user message
-    generateObjection(userMessage);
+    // Only proceed if roleplay has been started properly
+    if (roleplayStarted) {
+      // Add user message to conversation only when explicitly sending
+      setConversation(prev => [
+        ...prev,
+        { role: 'user', content: roleplayResponse }
+      ]);
+      
+      // Save the response and clear the input field
+      const userMessage = roleplayResponse;
+      setRoleplayResponse('');
+      
+      // Generate AI response after sending the user message
+      generateObjection(userMessage);
+    }
   };
 
   const handleRoleplayKeyPress = (e) => {
@@ -320,7 +384,7 @@ export default function Home() {
           <textarea
             value={pitch}
             onChange={(e) => setPitch(e.target.value)}
-            placeholder="Your pitch here..."
+            placeholder={roleplay ? "Enter your initial pitch here..." : "Your pitch here..."}
             rows={5}
             style={{ 
               width: '100%', 
@@ -345,8 +409,11 @@ export default function Home() {
           )}
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-            <button onClick={handleSubmit} disabled={isLoading}>
-              {isLoading ? 'Analyzing...' : 'Submit Pitch'}
+            <button 
+              onClick={handleSubmit} 
+              disabled={isLoading || (!pitch.trim() && !roleplayStarted)}
+            >
+              {isLoading ? 'Analyzing...' : (roleplay && !roleplayStarted) ? 'Start Roleplay' : 'Submit Pitch'}
             </button>
             <button onClick={startVoice}>Use Voice</button>
             <button onClick={exportToPDF} disabled={!feedback && conversation.length === 0}>Download PDF</button>
@@ -412,7 +479,9 @@ export default function Home() {
                 ))
               ) : (
                 <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>
-                  Enter your initial pitch in the main pitch area and enable roleplay to start the conversation
+                  {!roleplayStarted ? 
+                    "Enter your initial pitch in the main pitch area and click 'Start Roleplay' to begin" : 
+                    "No conversation yet"}
                 </div>
               )}
               {isTyping && (
@@ -436,10 +505,11 @@ export default function Home() {
                   resize: 'none',
                   minHeight: 60
                 }}
+                disabled={!roleplayStarted}
               />
               <button 
                 onClick={handleSendRoleplayResponse}
-                disabled={isTyping || !roleplayResponse.trim()}
+                disabled={isTyping || !roleplayResponse.trim() || !roleplayStarted}
                 style={{ 
                   borderRadius: '0 8px 8px 0',
                   border: '1px solid #ccc',
