@@ -38,7 +38,6 @@ export default function Home() {
   const [roleplayResponse, setRoleplayResponse] = useState('');
   const [isFirstRoleplay, setIsFirstRoleplay] = useState(true);
   const [roleplayStarted, setRoleplayStarted] = useState(false);
-  // Add a flag to prevent automatic message sending while typing
   const [isProcessingMessage, setIsProcessingMessage] = useState(false);
 
   useEffect(() => {
@@ -93,7 +92,13 @@ export default function Home() {
     
     setIsTyping(true);
     try {
-      const systemPrompt = `You are roleplaying as a ${persona} prospect. Based on the user's sales pitch, generate a realistic objection or question that such a prospect might have. Keep it brief (1-2 sentences) and realistic. Just respond with the objection text only.`;
+      // Enhanced system prompt for more contextual responses
+      const systemPrompt = `You are roleplaying as a ${persona} prospect considering a product/service. 
+      The user is a salesperson trying to sell to you. This is their initial pitch.
+      Respond naturally with an objection or question that such a prospect might have.
+      Your response should feel realistic and conversational.
+      Keep it brief (1-2 sentences) and express a concern or ask a question that would be typical for a ${persona}.
+      Just respond with the objection text only.`;
 
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -166,21 +171,37 @@ export default function Home() {
     setIsProcessingMessage(true); // Prevent concurrent message processing
     
     try {
-      const systemPrompt = `You are roleplaying as a ${persona} prospect. Based on the user's sales pitch, generate a realistic objection or question that such a prospect might have. Keep it brief (1-2 sentences) and realistic. Just respond with the objection text only.`;
-
+      // Create a full conversation history to provide context
+      const conversationHistory = conversation.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      }));
+      
+      // Enhanced system prompt with more detailed instructions
+      const systemPrompt = `You are roleplaying as a ${persona} prospect considering a product/service. 
+      The user is a salesperson trying to sell to you. 
+      Base your responses on the full conversation history and react naturally to what the user says.
+      If they answer your questions, ask follow-up questions or express new concerns. 
+      If they make good points, acknowledge them but potentially raise new objections.
+      If they use vague statements, ask for specifics.
+      If they're persuasive, show increased interest.
+      Keep responses brief (1-3 sentences) and conversational.
+      Respond as a real person would in a sales conversation.`;
+      
       const response = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [
             { role: 'system', content: systemPrompt },
+            ...conversationHistory,
             { role: 'user', content: userMessage }
           ]
         })
       });
 
       const data = await response.json();
-      const newObjection = typeof data === 'string' ? data : (data.content || "That's interesting, but what makes your product different from what I'm currently using?");
+      const newObjection = typeof data === 'string' ? data : (data.content || "I see. Can you tell me more about how this would specifically benefit my situation?");
       
       setObjection(newObjection);
       // Add prospect's response to conversation
@@ -423,7 +444,12 @@ export default function Home() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 20, flexWrap: roleplay ? 'nowrap' : 'wrap' }}>
+      <div style={{ 
+        display: 'flex', 
+        gap: 20, 
+        flexWrap: roleplay ? 'nowrap' : 'wrap',
+        alignItems: 'flex-start' // Add this line to align items at the top
+      }}>
         {/* Left side - Original pitch and feedback section */}
         <div style={{ flex: roleplay ? 1 : '100%', minWidth: roleplay ? 400 : 'auto' }}>
           <textarea
@@ -511,9 +537,10 @@ export default function Home() {
                   <div key={index} style={{ 
                     marginBottom: 12,
                     backgroundColor: message.role === 'user' ? '#e3f2fd' : '#fff',
-                    padding: 10,
-                    borderRadius: 6,
-                    maxWidth: '80%',
+                    padding: 12, // Increased padding
+                    borderRadius: 8, // Slightly larger radius
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)', // Add subtle shadow
+                    maxWidth: '90%', // Wider messages
                     marginLeft: message.role === 'user' ? 'auto' : '0'
                   }}>
                     <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
