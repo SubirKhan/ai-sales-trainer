@@ -38,6 +38,8 @@ export default function Home() {
   const [roleplayResponse, setRoleplayResponse] = useState('');
   const [isFirstRoleplay, setIsFirstRoleplay] = useState(true);
   const [roleplayStarted, setRoleplayStarted] = useState(false);
+  // Add a flag to prevent automatic message sending while typing
+  const [isProcessingMessage, setIsProcessingMessage] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -54,6 +56,7 @@ export default function Home() {
       setRoleplayStarted(false);
       setConversation([]);
       setPitch(''); // Clear pitch input when enabling roleplay
+      setRoleplayResponse(''); // Clear any existing roleplay response
     } else {
       // Reset when disabling roleplay
       setObjection('');
@@ -61,17 +64,27 @@ export default function Home() {
       setRoleplayStarted(false);
       setRoleplayResponse(''); // Clear roleplay response when disabling
     }
+    // Reset the processing flag when toggling roleplay mode
+    setIsProcessingMessage(false);
   }, [roleplay]);
 
   // Function to handle initial roleplay setup - only called when explicitly triggered
-  const startRoleplay = () => {
-    if (!roleplayStarted && pitch.trim()) {
+  const startRoleplay = async () => {
+    if (!roleplayStarted && pitch.trim() && !isProcessingMessage) {
+      setIsProcessingMessage(true); // Prevent concurrent processing
+      
       // Start roleplay with user's initial pitch
       setConversation([{ role: 'user', content: pitch }]);
-      generateInitialObjection(pitch);
+      // Set roleplay as started BEFORE generating the objection to prevent duplicate messages
       setRoleplayStarted(true);
       setIsFirstRoleplay(false);
-      setPitch(''); // Clear pitch input after starting roleplay
+      
+      // Generate the initial objection
+      await generateInitialObjection(pitch);
+      
+      // Clear pitch input after starting roleplay
+      setPitch('');
+      setIsProcessingMessage(false);
     }
   };
 
@@ -147,9 +160,11 @@ export default function Home() {
   };
 
   const generateObjection = async (userMessage) => {
-    if (!userMessage || !userMessage.trim()) return;
+    if (!userMessage || !userMessage.trim() || isProcessingMessage) return;
     
     setIsTyping(true);
+    setIsProcessingMessage(true); // Prevent concurrent message processing
+    
     try {
       const systemPrompt = `You are roleplaying as a ${persona} prospect. Based on the user's sales pitch, generate a realistic objection or question that such a prospect might have. Keep it brief (1-2 sentences) and realistic. Just respond with the objection text only.`;
 
@@ -183,19 +198,47 @@ export default function Home() {
       ]);
     }
     setIsTyping(false);
+    setIsProcessingMessage(false); // Allow new messages to be processed
   };
 
   const handleSubmit = async () => {
-    if (!pitch.trim()) return;
+    if (!pitch.trim() || isProcessingMessage) return;
+    
+    // Prevent concurrent processing
+    setIsProcessingMessage(true);
     
     if (roleplay && !roleplayStarted) {
       // If in roleplay mode and it's not started yet, start the roleplay
-      startRoleplay();
+      await startRoleplay();
+      setIsProcessingMessage(false);
       return;
     }
     
+    // If not in roleplay mode or roleplay already started, proceed with normal pitch submission
     setIsLoading(true);
     try {
+      // If we're in roleplay mode and submitting a new pitch after roleplay has started,
+      // treat it as a regular roleplay response
+      if (roleplay && roleplayStarted) {
+        // Since we're using the main pitch input, transfer it to roleplay response
+        // and clear the pitch
+        const userMessage = pitch;
+        setPitch('');
+        
+        // Add user message to conversation
+        setConversation(prev => [
+          ...prev,
+          { role: 'user', content: userMessage }
+        ]);
+        
+        // Generate AI response
+        await generateObjection(userMessage);
+        setIsLoading(false);
+        setIsProcessingMessage(false);
+        return;
+      }
+      
+      // Standard pitch evaluation (not in roleplay mode)
       const systemPrompt = `You are an expert AI sales coach with a ${coachTone} tone. Be highly critical and honest. Evaluate the user's sales pitch as if they were pitching to a ${persona}. Penalize vague, short, or generic phrases. Only give high scores if the pitch shows clear structure, relevance, credibility, and persuasive reasoning. Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
 
       const userPrompt = `Sales Pitch: ${pitch}`;
@@ -217,27 +260,32 @@ export default function Home() {
       alert('Error getting feedback: ' + err.message);
     }
     setIsLoading(false);
+    setIsProcessingMessage(false);
   };
 
   // Modified to ensure messages are only sent when explicitly triggered
-  const handleSendRoleplayResponse = () => {
-    if (!roleplayResponse.trim()) return;
+  const handleSendRoleplayResponse = async () => {
+    if (!roleplayResponse.trim() || !roleplayStarted || isTyping || isProcessingMessage) return;
     
-    // Only proceed if roleplay has been started properly
-    if (roleplayStarted) {
-      // Add user message to conversation only when explicitly sending
-      setConversation(prev => [
-        ...prev,
-        { role: 'user', content: roleplayResponse }
-      ]);
-      
-      // Save the response and clear the input field
-      const userMessage = roleplayResponse;
-      setRoleplayResponse('');
-      
-      // Generate AI response after sending the user message
-      generateObjection(userMessage);
-    }
+    // Set processing flag to prevent concurrent sends
+    setIsProcessingMessage(true);
+    
+    // Add user message to conversation only when explicitly sending
+    const userMessage = roleplayResponse;
+    
+    setConversation(prev => [
+      ...prev,
+      { role: 'user', content: userMessage }
+    ]);
+    
+    // Clear the input field before generating AI response
+    setRoleplayResponse('');
+    
+    // Generate AI response after sending the user message
+    await generateObjection(userMessage);
+    
+    // Reset processing flag
+    setIsProcessingMessage(false);
   };
 
   const handleRoleplayKeyPress = (e) => {
@@ -408,7 +456,7 @@ export default function Home() {
           <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
             <button 
               onClick={handleSubmit} 
-              disabled={isLoading || !pitch.trim()}
+              disabled={isLoading || !pitch.trim() || isProcessingMessage}
             >
               {isLoading ? 'Analyzing...' : (roleplay && !roleplayStarted) ? 'Start Roleplay' : 'Submit Pitch'}
             </button>
@@ -503,17 +551,17 @@ export default function Home() {
                   minHeight: 60,
                   opacity: roleplayStarted ? 1 : 0.7
                 }}
-                disabled={!roleplayStarted}
+                disabled={!roleplayStarted || isTyping || isProcessingMessage}
               />
               <button 
                 onClick={handleSendRoleplayResponse}
-                disabled={isTyping || !roleplayResponse.trim() || !roleplayStarted}
+                disabled={isTyping || !roleplayResponse.trim() || !roleplayStarted || isProcessingMessage}
                 style={{ 
                   borderRadius: '0 8px 8px 0',
                   border: '1px solid #ccc',
                   borderLeft: 'none',
                   padding: '0 16px',
-                  opacity: (roleplayStarted && roleplayResponse.trim() && !isTyping) ? 1 : 0.7
+                  opacity: (roleplayStarted && roleplayResponse.trim() && !isTyping && !isProcessingMessage) ? 1 : 0.7
                 }}
               >
                 Send
