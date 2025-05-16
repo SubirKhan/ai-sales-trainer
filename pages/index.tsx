@@ -39,6 +39,25 @@ export default function Home() {
   const [isFirstRoleplay, setIsFirstRoleplay] = useState(true);
   const [roleplayStarted, setRoleplayStarted] = useState(false);
   const [isProcessingMessage, setIsProcessingMessage] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  // Add responsive handling
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleResize);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize);
+      }
+    };
+  }, []);
+
+  const isMobile = windowWidth < 768;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -95,9 +114,16 @@ export default function Home() {
       // Enhanced system prompt for more contextual responses
       const systemPrompt = `You are roleplaying as a ${persona} prospect considering a product/service. 
       The user is a salesperson trying to sell to you. This is their initial pitch.
-      Respond naturally with an objection or question that such a prospect might have.
-      Your response should feel realistic and conversational.
-      Keep it brief (1-2 sentences) and express a concern or ask a question that would be typical for a ${persona}.
+      
+      Your role is to respond with a realistic objection or question that such a prospect might have.
+      
+      Your response should:
+      - Feel realistic and conversational
+      - Express a specific concern or ask a targeted question relevant to a ${persona}
+      - Be brief (1-2 sentences)
+      - Be something that would naturally come up early in a sales conversation
+      - NOT be too aggressive or dismissive
+      
       Just respond with the objection text only.`;
 
       const response = await fetch('/api/feedback', {
@@ -171,22 +197,40 @@ export default function Home() {
     setIsProcessingMessage(true); // Prevent concurrent message processing
     
     try {
-      // Create a full conversation history to provide context
-      const conversationHistory = conversation.map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'assistant',
-        content: msg.content
-      }));
+      // Create a properly formatted conversation history
+      const formattedConversation = [];
+      
+      // Add past messages in the correct format for the AI
+      conversation.forEach(msg => {
+        formattedConversation.push({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        });
+      });
+      
+      // Add the current message
+      formattedConversation.push({
+        role: 'user',
+        content: userMessage
+      });
       
       // Enhanced system prompt with more detailed instructions
       const systemPrompt = `You are roleplaying as a ${persona} prospect considering a product/service. 
       The user is a salesperson trying to sell to you. 
-      Base your responses on the full conversation history and react naturally to what the user says.
-      If they answer your questions, ask follow-up questions or express new concerns. 
-      If they make good points, acknowledge them but potentially raise new objections.
-      If they use vague statements, ask for specifics.
-      If they're persuasive, show increased interest.
+      
+      Your role is to respond differently to each message from the user based on what they say.
+      
+      IMPORTANT: You must NOT repeat the same response twice. Each of your responses should be unique.
+      
+      Based on the conversation history, here's how you should respond:
+      - If they answer your questions, acknowledge their answer and either show interest or ask a follow-up.
+      - If they provide specific benefits, ask for more details or express concerns about implementation.
+      - If they make good points, acknowledge them but raise a new concern or objection.
+      - If they use vague statements, ask for specifics or express skepticism.
+      - If they're persuasive, show increased interest but still maintain some hesitation.
+      
       Keep responses brief (1-3 sentences) and conversational.
-      Respond as a real person would in a sales conversation.`;
+      NEVER repeat your previous response word-for-word.`;
       
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -194,20 +238,28 @@ export default function Home() {
         body: JSON.stringify({
           messages: [
             { role: 'system', content: systemPrompt },
-            ...conversationHistory,
-            { role: 'user', content: userMessage }
+            ...formattedConversation
           ]
         })
       });
 
       const data = await response.json();
-      const newObjection = typeof data === 'string' ? data : (data.content || "I see. Can you tell me more about how this would specifically benefit my situation?");
+      const newObjection = typeof data === 'string' ? data : (data.content || "I need more specific information about how this would work for my situation.");
       
-      setObjection(newObjection);
+      // Check if this response is too similar to the previous one
+      const lastProspectMessage = [...conversation].reverse().find(msg => msg.role === 'prospect')?.content;
+      
+      let finalResponse = newObjection;
+      if (lastProspectMessage && lastProspectMessage.toLowerCase() === newObjection.toLowerCase()) {
+        // If it's identical, append a fallback extension to make it different
+        finalResponse += " Could you elaborate more on that aspect?";
+      }
+      
+      setObjection(finalResponse);
       // Add prospect's response to conversation
       setConversation(prev => [
         ...prev, 
-        { role: 'prospect', content: newObjection }
+        { role: 'prospect', content: finalResponse }
       ]);
     } catch (err) {
       console.error("Error generating objection:", err);
@@ -398,8 +450,15 @@ export default function Home() {
     : [];
 
   return (
-    <div style={{ fontFamily: 'Nunito, sans-serif', maxWidth: 1200, margin: '0 auto', padding: 40, backgroundColor: '#f8f8ff', borderRadius: 18 }}>
-      <h1 style={{ fontSize: '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
+    <div style={{ 
+      fontFamily: 'Nunito, sans-serif', 
+      maxWidth: 1200, 
+      margin: '0 auto', 
+      padding: isMobile ? 15 : 40, 
+      backgroundColor: '#f8f8ff', 
+      borderRadius: 18 
+    }}>
+      <h1 style={{ fontSize: isMobile ? '1.8rem' : '2.4rem', textAlign: 'center', marginBottom: 30 }}>AI Sales Trainer</h1>
 
       {!user ? (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -417,21 +476,21 @@ export default function Home() {
       )}
 
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 20 }}>
-        <div style={{ flex: 1, minWidth: 220 }}>
+        <div style={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>Feedback Tone:</label>
           <select value={coachTone} onChange={(e) => setCoachTone(e.target.value)} style={{ width: '100%', padding: 8 }}>
             {toneOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </div>
 
-        <div style={{ flex: 1, minWidth: 220 }}>
+        <div style={{ flex: 1, minWidth: isMobile ? '100%' : 220 }}>
           <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>Who Are You Pitching To?</label>
           <select value={persona} onChange={(e) => setPersona(e.target.value)} style={{ width: '100%', padding: 8 }}>
             {personaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: isMobile ? '100%' : 'auto' }}>
           <input 
             type="checkbox" 
             checked={roleplay} 
@@ -446,12 +505,16 @@ export default function Home() {
 
       <div style={{ 
         display: 'flex', 
+        flexDirection: isMobile || !roleplay ? 'column' : 'row',
         gap: 20, 
-        flexWrap: roleplay ? 'nowrap' : 'wrap',
-        alignItems: 'flex-start' // Add this line to align items at the top
+        width: '100%',
+        alignItems: 'stretch'
       }}>
         {/* Left side - Original pitch and feedback section */}
-        <div style={{ flex: roleplay ? 1 : '100%', minWidth: roleplay ? 400 : 'auto' }}>
+        <div style={{ 
+          flex: roleplay && !isMobile ? 1 : 'auto',
+          width: '100%'
+        }}>
           <textarea
             value={pitch}
             onChange={(e) => setPitch(e.target.value)}
@@ -463,7 +526,8 @@ export default function Home() {
               fontSize: 16, 
               borderRadius: 8, 
               marginBottom: 20,
-              resize: 'vertical'
+              resize: 'vertical',
+              boxSizing: 'border-box'
             }}
           />
 
@@ -479,15 +543,27 @@ export default function Home() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
             <button 
               onClick={handleSubmit} 
               disabled={isLoading || !pitch.trim() || isProcessingMessage}
+              style={{ flex: isMobile ? '1 0 auto' : 'none' }}
             >
               {isLoading ? 'Analyzing...' : (roleplay && !roleplayStarted) ? 'Start Roleplay' : 'Submit Pitch'}
             </button>
-            <button onClick={startVoice}>Use Voice</button>
-            <button onClick={exportToPDF} disabled={!feedback && conversation.length === 0}>Download PDF</button>
+            <button 
+              onClick={startVoice}
+              style={{ flex: isMobile ? '1 0 auto' : 'none' }}
+            >
+              Use Voice
+            </button>
+            <button 
+              onClick={exportToPDF} 
+              disabled={!feedback && conversation.length === 0}
+              style={{ flex: isMobile ? '1 0 auto' : 'none' }}
+            >
+              Download PDF
+            </button>
           </div>
 
           {feedback && !roleplay && (
@@ -521,7 +597,10 @@ export default function Home() {
 
         {/* Right side - Interactive roleplay conversation */}
         {roleplay && (
-          <div style={{ flex: 1, minWidth: 400 }}>
+          <div style={{ 
+            flex: !isMobile ? 1 : 'auto',
+            width: '100%'
+          }}>
             <h3>Roleplay Conversation:</h3>
             <div style={{ 
               backgroundColor: '#f0f8ff', 
@@ -530,7 +609,8 @@ export default function Home() {
               height: 400, 
               overflowY: 'auto',
               border: '1px solid #e1e4e8',
-              marginBottom: 12
+              marginBottom: 12,
+              boxSizing: 'border-box'
             }}>
               {conversation.length > 0 ? (
                 conversation.map((message, index) => (
@@ -563,7 +643,7 @@ export default function Home() {
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', alignItems: 'stretch', width: '100%' }}>
               <textarea
                 value={roleplayResponse}
                 onChange={(e) => setRoleplayResponse(e.target.value)}
@@ -576,7 +656,8 @@ export default function Home() {
                   borderRadius: '8px 0 0 8px', 
                   resize: 'none',
                   minHeight: 60,
-                  opacity: roleplayStarted ? 1 : 0.7
+                  opacity: roleplayStarted ? 1 : 0.7,
+                  boxSizing: 'border-box'
                 }}
                 disabled={!roleplayStarted || isTyping || isProcessingMessage}
               />
