@@ -40,6 +40,11 @@ export default function Home() {
   const [roleplayStarted, setRoleplayStarted] = useState(false);
   const [isProcessingMessage, setIsProcessingMessage] = useState(false);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  
+  // New state for adaptive challenging
+  const [prospectEngagement, setProspectEngagement] = useState('neutral'); // 'cold', 'neutral', 'warm', 'hot'
+  const [challengeLevel, setChallengeLevel] = useState(1); // 1-5, increases with good responses
+  const [conversationPhase, setConversationPhase] = useState('discovery'); // 'discovery', 'presentation', 'objection_handling', 'closing', 'ended'
 
   // Add responsive handling
   useEffect(() => {
@@ -66,41 +71,103 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // Modified roleplay effect to prevent automatic message sending
+  // Modified roleplay effect to reset adaptive states
   useEffect(() => {
     if (roleplay) {
       // Reset conversation state when enabling roleplay mode
       setIsFirstRoleplay(true);
       setRoleplayStarted(false);
       setConversation([]);
-      setPitch(''); // Clear pitch input when enabling roleplay
-      setRoleplayResponse(''); // Clear any existing roleplay response
+      setPitch('');
+      setRoleplayResponse('');
+      // Reset adaptive states
+      setProspectEngagement('neutral');
+      setChallengeLevel(1);
+      setConversationPhase('discovery');
     } else {
       // Reset when disabling roleplay
       setObjection('');
       setConversation([]);
       setRoleplayStarted(false);
-      setRoleplayResponse(''); // Clear roleplay response when disabling
+      setRoleplayResponse('');
+      setProspectEngagement('neutral');
+      setChallengeLevel(1);
+      setConversationPhase('discovery');
     }
-    // Reset the processing flag when toggling roleplay mode
     setIsProcessingMessage(false);
   }, [roleplay]);
 
-  // Function to handle initial roleplay setup - only called when explicitly triggered
+  // Function to evaluate user response quality and adjust engagement
+  const evaluateUserResponse = (userMessage) => {
+    const message = userMessage.toLowerCase();
+    let score = 0;
+    
+    // Positive indicators
+    if (message.includes('because') || message.includes('specifically') || message.includes('for example')) score += 2;
+    if (message.includes('save') || message.includes('increase') || message.includes('improve') || message.includes('reduce')) score += 2;
+    if (message.includes('$') || message.includes('percent') || message.includes('%') || message.includes('roi')) score += 2;
+    if (message.includes('proven') || message.includes('results') || message.includes('experience')) score += 1;
+    if (message.length > 50) score += 1; // Detailed responses
+    
+    // Negative indicators
+    if (message.includes('i think') || message.includes('maybe') || message.includes('probably')) score -= 1;
+    if (message.includes('good') || message.includes('great') || message.includes('amazing')) score -= 1; // Generic adjectives
+    if (message.length < 20) score -= 2; // Too brief
+    if (message.includes('um') || message.includes('uh') || message.includes('like')) score -= 1;
+    
+    return score;
+  };
+
+  // Function to update engagement and challenge level
+  const updateEngagementLevel = (userMessage) => {
+    const responseScore = evaluateUserResponse(userMessage);
+    
+    // Update engagement based on response quality
+    if (responseScore >= 4) {
+      setProspectEngagement(prev => {
+        if (prev === 'cold') return 'neutral';
+        if (prev === 'neutral') return 'warm';
+        if (prev === 'warm') return 'hot';
+        return 'hot';
+      });
+      setChallengeLevel(prev => Math.min(prev + 1, 5));
+    } else if (responseScore <= -2) {
+      setProspectEngagement(prev => {
+        if (prev === 'hot') return 'warm';
+        if (prev === 'warm') return 'neutral';
+        if (prev === 'neutral') return 'cold';
+        return 'cold';
+      });
+      setChallengeLevel(prev => Math.max(prev - 1, 1));
+    }
+    
+    // Update conversation phase based on engagement and message count
+    const messageCount = conversation.length;
+    if (messageCount > 8 && prospectEngagement === 'hot') {
+      setConversationPhase('closing');
+    } else if (messageCount > 6) {
+      setConversationPhase('objection_handling');
+    } else if (messageCount > 4) {
+      setConversationPhase('presentation');
+    }
+    
+    // End conversation if prospect becomes too cold
+    if (prospectEngagement === 'cold' && messageCount > 4) {
+      setConversationPhase('ended');
+    }
+  };
+
+  // Function to handle initial roleplay setup
   const startRoleplay = async () => {
     if (!roleplayStarted && pitch.trim() && !isProcessingMessage) {
-      setIsProcessingMessage(true); // Prevent concurrent processing
+      setIsProcessingMessage(true);
       
-      // Start roleplay with user's initial pitch
       setConversation([{ role: 'user', content: pitch }]);
-      // Set roleplay as started BEFORE generating the objection to prevent duplicate messages
       setRoleplayStarted(true);
       setIsFirstRoleplay(false);
       
-      // Generate the initial objection
       await generateInitialObjection(pitch);
       
-      // Clear pitch input after starting roleplay
       setPitch('');
       setIsProcessingMessage(false);
     }
@@ -111,20 +178,24 @@ export default function Home() {
     
     setIsTyping(true);
     try {
-      // Enhanced system prompt for more contextual responses
-      const systemPrompt = `You are roleplaying as a ${persona} prospect considering a product/service. 
-      The user is a salesperson trying to sell to you. This is their initial pitch.
-      
-      Your role is to respond with a realistic objection or question that such a prospect might have.
-      
-      Your response should:
-      - Feel realistic and conversational
-      - Express a specific concern or ask a targeted question relevant to a ${persona}
-      - Be brief (1-2 sentences)
-      - Be something that would naturally come up early in a sales conversation
-      - NOT be too aggressive or dismissive
-      
-      Just respond with the objection text only.`;
+      const systemPrompt = `You are an AI Sales Trainer roleplaying as a ${persona} prospect. Your GOAL is to help the user become a better salesperson by providing realistic, challenging interactions.
+
+TRAINING AGENDA:
+- Test the user's product knowledge and value proposition
+- Challenge weak or vague responses with tough follow-up questions
+- Simulate realistic buying concerns for a ${persona}
+- Help the user practice handling objections and closing techniques
+- Provide a progressively challenging experience
+
+PERSONA CONTEXT: You are a ${persona}. This is their initial pitch.
+
+Your response should:
+- Be realistic for a ${persona} 
+- Present a legitimate business concern or objection
+- Test their knowledge without being impossible to answer
+- Set the tone for a challenging but fair sales conversation
+
+Respond with 1-2 sentences expressing a realistic initial concern or question.`;
 
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -138,10 +209,9 @@ export default function Home() {
       });
 
       const data = await response.json();
-      const newObjection = typeof data === 'string' ? data : (data.content || "That's interesting, but what makes your product different from what I'm currently using?");
+      const newObjection = typeof data === 'string' ? data : (data.content || "That's interesting, but I need to understand the specific value this would bring to my business. What concrete results can you guarantee?");
       
       setObjection(newObjection);
-      // Add prospect's response to conversation
       setConversation(prev => [
         ...prev,
         { role: 'prospect', content: newObjection }
@@ -194,43 +264,104 @@ export default function Home() {
     if (!userMessage || !userMessage.trim() || isProcessingMessage) return;
     
     setIsTyping(true);
-    setIsProcessingMessage(true); // Prevent concurrent message processing
+    setIsProcessingMessage(true);
     
     try {
-      // Create a properly formatted conversation history
-      const formattedConversation = [];
+      // Update engagement based on user response quality
+      updateEngagementLevel(userMessage);
       
-      // Add past messages in the correct format for the AI
+      // Format conversation history
+      const formattedConversation = [];
       conversation.forEach(msg => {
         formattedConversation.push({
           role: msg.role === 'user' ? 'user' : 'assistant',
           content: msg.content
         });
       });
-      
-      // Add the current message
       formattedConversation.push({
         role: 'user',
         content: userMessage
       });
       
-      // Enhanced system prompt with more detailed instructions
-      const systemPrompt = `You are roleplaying as a ${persona} prospect considering a product/service. 
-      The user is a salesperson trying to sell to you. 
-      
-      Your role is to respond differently to each message from the user based on what they say.
-      
-      IMPORTANT: You must NOT repeat the same response twice. Each of your responses should be unique.
-      
-      Based on the conversation history, here's how you should respond:
-      - If they answer your questions, acknowledge their answer and either show interest or ask a follow-up.
-      - If they provide specific benefits, ask for more details or express concerns about implementation.
-      - If they make good points, acknowledge them but raise a new concern or objection.
-      - If they use vague statements, ask for specifics or express skepticism.
-      - If they're persuasive, show increased interest but still maintain some hesitation.
-      
-      Keep responses brief (1-3 sentences) and conversational.
-      NEVER repeat your previous response word-for-word.`;
+      // Enhanced adaptive system prompt
+      const getEngagementBehavior = () => {
+        switch(prospectEngagement) {
+          case 'cold':
+            return "You are losing interest. Be more skeptical, shorter in responses, and consider ending the conversation if they don't provide compelling value.";
+          case 'neutral':
+            return "You are cautiously interested but need convincing. Ask probing questions to test their knowledge.";
+          case 'warm':
+            return "You are becoming more interested. Ask more qualified questions about implementation, next steps, and specifics.";
+          case 'hot':
+            return "You are very interested but still need final convincing. Focus on timeline, budget, and decision-making process.";
+          default:
+            return "Maintain professional interest while testing their capabilities.";
+        }
+      };
+
+      const getChallengeInstructions = () => {
+        const baseInstructions = [
+          "Ask tough, realistic questions that a real prospect would ask",
+          "Test their product knowledge and value proposition",
+          "Challenge vague or weak responses with follow-up questions"
+        ];
+        
+        if (challengeLevel >= 3) {
+          baseInstructions.push("Ask about competitors and why you should choose them");
+          baseInstructions.push("Question their pricing and ROI claims");
+        }
+        
+        if (challengeLevel >= 4) {
+          baseInstructions.push("Bring up implementation concerns and potential risks");
+          baseInstructions.push("Ask for specific case studies or references");
+        }
+        
+        return baseInstructions.join(". ");
+      };
+
+      const getPhaseInstructions = () => {
+        switch(conversationPhase) {
+          case 'discovery':
+            return "Focus on understanding their offering and asking qualifying questions.";
+          case 'presentation':
+            return "Challenge their value proposition and ask for specific benefits.";
+          case 'objection_handling':
+            return "Present realistic concerns and objections that need to be addressed.";
+          case 'closing':
+            return "Focus on decision-making process, timeline, and next steps.";
+          case 'ended':
+            return "The conversation should end. Express that you've heard enough and are not interested.";
+          default:
+            return "Engage naturally based on the conversation flow.";
+        }
+      };
+
+      const systemPrompt = `You are an AI Sales Trainer roleplaying as a ${persona} prospect. Your GOAL is to help the user become a better salesperson.
+
+CURRENT STATE:
+- Engagement Level: ${prospectEngagement}
+- Challenge Level: ${challengeLevel}/5
+- Conversation Phase: ${conversationPhase}
+- Coach Tone: ${coachTone}
+
+BEHAVIORAL INSTRUCTIONS:
+${getEngagementBehavior()}
+
+CHALLENGE INSTRUCTIONS:
+${getChallengeInstructions()}
+
+PHASE INSTRUCTIONS:
+${getPhaseInstructions()}
+
+TRAINING RULES:
+1. Respond differently to each message - never repeat responses
+2. ${prospectEngagement === 'hot' ? 'Show strong interest but still challenge them' : prospectEngagement === 'cold' ? 'Be skeptical and consider ending the conversation' : 'Maintain professional interest while testing their capabilities'}
+3. Ask questions that real ${persona} prospects would ask
+4. Challenge weak responses immediately
+5. Reward strong responses with increased engagement
+6. Keep responses 1-3 sentences unless ending the conversation
+
+${conversationPhase === 'ended' ? 'END the conversation by saying you are not interested and thanking them for their time.' : 'Continue the conversation with a challenging but fair response.'}`;
       
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -244,23 +375,20 @@ export default function Home() {
       });
 
       const data = await response.json();
-      const newObjection = typeof data === 'string' ? data : (data.content || "I need more specific information about how this would work for my situation.");
+      let newObjection = typeof data === 'string' ? data : (data.content || "I need more specific information about how this would work for my situation.");
       
-      // Check if this response is too similar to the previous one
+      // Check for repetition and add variety
       const lastProspectMessage = [...conversation].reverse().find(msg => msg.role === 'prospect')?.content;
-      
-      let finalResponse = newObjection;
       if (lastProspectMessage && lastProspectMessage.toLowerCase() === newObjection.toLowerCase()) {
-        // If it's identical, append a fallback extension to make it different
-        finalResponse += " Could you elaborate more on that aspect?";
+        newObjection += " Can you provide a specific example?";
       }
       
-      setObjection(finalResponse);
-      // Add prospect's response to conversation
+      setObjection(newObjection);
       setConversation(prev => [
         ...prev, 
-        { role: 'prospect', content: finalResponse }
+        { role: 'prospect', content: newObjection }
       ]);
+      
     } catch (err) {
       console.error("Error generating objection:", err);
       const fallbackMessage = "I'm not sure about that. Can you tell me more?";
@@ -271,48 +399,57 @@ export default function Home() {
       ]);
     }
     setIsTyping(false);
-    setIsProcessingMessage(false); // Allow new messages to be processed
+    setIsProcessingMessage(false);
   };
 
   const handleSubmit = async () => {
     if (!pitch.trim() || isProcessingMessage) return;
     
-    // Prevent concurrent processing
     setIsProcessingMessage(true);
     
     if (roleplay && !roleplayStarted) {
-      // If in roleplay mode and it's not started yet, start the roleplay
       await startRoleplay();
       setIsProcessingMessage(false);
       return;
     }
     
-    // If not in roleplay mode or roleplay already started, proceed with normal pitch submission
     setIsLoading(true);
     try {
-      // If we're in roleplay mode and submitting a new pitch after roleplay has started,
-      // treat it as a regular roleplay response
       if (roleplay && roleplayStarted) {
-        // Since we're using the main pitch input, transfer it to roleplay response
-        // and clear the pitch
         const userMessage = pitch;
         setPitch('');
         
-        // Add user message to conversation
         setConversation(prev => [
           ...prev,
           { role: 'user', content: userMessage }
         ]);
         
-        // Generate AI response
         await generateObjection(userMessage);
         setIsLoading(false);
         setIsProcessingMessage(false);
         return;
       }
       
-      // Standard pitch evaluation (not in roleplay mode)
-      const systemPrompt = `You are an expert AI sales coach with a ${coachTone} tone. Be highly critical and honest. Evaluate the user's sales pitch as if they were pitching to a ${persona}. Penalize vague, short, or generic phrases. Only give high scores if the pitch shows clear structure, relevance, credibility, and persuasive reasoning. Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and comments.`;
+      // Standard pitch evaluation (enhanced with coaching tone)
+      const systemPrompt = `You are an expert AI sales coach with a ${coachTone} tone. Your goal is to help this person become a better salesperson.
+
+Evaluate their sales pitch as if they were pitching to a ${persona}. Be critical and honest - this is training, not encouragement.
+
+EVALUATION CRITERIA:
+- Confidence: Do they sound sure of their value proposition?
+- Clarity: Is their message clear and easy to understand?
+- Structure: Is there a logical flow to their pitch?
+- Authenticity: Does it sound genuine or scripted?
+- Persuasiveness: Would this actually convince a ${persona} to take action?
+
+Be tough on:
+- Vague or generic statements
+- Lack of specific benefits or ROI
+- Missing value proposition
+- Poor structure or rambling
+- Weak closing or call-to-action
+
+Return a JSON object with confidence, clarity, structure, authenticity, persuasiveness (rated 0-10), strongestLine, weakestLine, and detailed comments that will help them improve.`;
 
       const userPrompt = `Sales Pitch: ${pitch}`;
 
@@ -336,14 +473,11 @@ export default function Home() {
     setIsProcessingMessage(false);
   };
 
-  // Modified to ensure messages are only sent when explicitly triggered
   const handleSendRoleplayResponse = async () => {
     if (!roleplayResponse.trim() || !roleplayStarted || isTyping || isProcessingMessage) return;
     
-    // Set processing flag to prevent concurrent sends
     setIsProcessingMessage(true);
     
-    // Add user message to conversation only when explicitly sending
     const userMessage = roleplayResponse;
     
     setConversation(prev => [
@@ -351,13 +485,10 @@ export default function Home() {
       { role: 'user', content: userMessage }
     ]);
     
-    // Clear the input field before generating AI response
     setRoleplayResponse('');
     
-    // Generate AI response after sending the user message
     await generateObjection(userMessage);
     
-    // Reset processing flag
     setIsProcessingMessage(false);
   };
 
@@ -376,10 +507,12 @@ export default function Home() {
     doc.setFontSize(16);
     
     if (roleplay && conversation.length > 0) {
-      doc.text('AI Sales Roleplay Conversation', 20, 20);
+      doc.text('AI Sales Trainer - Roleplay Session', 20, 20);
+      doc.setFontSize(10);
+      doc.text(`Engagement Level: ${prospectEngagement} | Challenge Level: ${challengeLevel}/5 | Phase: ${conversationPhase}`, 20, 30);
       doc.setFontSize(12);
       
-      let yPosition = 40;
+      let yPosition = 45;
       conversation.forEach((message, index) => {
         const prefix = message.role === 'user' ? 'You: ' : `${persona} Prospect: `;
         const lines = doc.splitTextToSize(prefix + message.content, 170);
@@ -387,7 +520,6 @@ export default function Home() {
         doc.text(lines, 20, yPosition);
         yPosition += 10 * lines.length + 5;
         
-        // Add a separator line except after the last message
         if (index < conversation.length - 1) {
           doc.setDrawColor(200);
           doc.line(20, yPosition - 2, 190, yPosition - 2);
@@ -449,6 +581,17 @@ export default function Home() {
         .map(([key, value]) => ({ subject: key, A: value, fullMark: 10 }))
     : [];
 
+  // Function to get engagement color
+  const getEngagementColor = () => {
+    switch(prospectEngagement) {
+      case 'cold': return '#ff4444';
+      case 'neutral': return '#ffaa00';
+      case 'warm': return '#44aa44';
+      case 'hot': return '#00aa44';
+      default: return '#888888';
+    }
+  };
+
   return (
     <div style={{ 
       fontFamily: 'Nunito, sans-serif', 
@@ -502,6 +645,34 @@ export default function Home() {
           </label>
         </div>
       </div>
+
+      {/* Engagement and Challenge Level Indicators */}
+      {roleplay && roleplayStarted && (
+        <div style={{ 
+          display: 'flex', 
+          gap: 20, 
+          marginBottom: 20, 
+          padding: 15, 
+          backgroundColor: '#fff', 
+          borderRadius: 8,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ flex: 1 }}>
+            <strong>Prospect Engagement: </strong>
+            <span style={{ color: getEngagementColor(), fontWeight: 'bold', textTransform: 'uppercase' }}>
+              {prospectEngagement}
+            </span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <strong>Challenge Level: </strong>
+            <span style={{ fontWeight: 'bold' }}>{challengeLevel}/5</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <strong>Phase: </strong>
+            <span style={{ fontWeight: 'bold', textTransform: 'capitalize' }}>{conversationPhase}</span>
+          </div>
+        </div>
+      )}
 
       <div style={{ 
         display: 'flex', 
@@ -617,11 +788,12 @@ export default function Home() {
                   <div key={index} style={{ 
                     marginBottom: 12,
                     backgroundColor: message.role === 'user' ? '#e3f2fd' : '#fff',
-                    padding: 12, // Increased padding
-                    borderRadius: 8, // Slightly larger radius
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)', // Add subtle shadow
-                    maxWidth: '90%', // Wider messages
-                    marginLeft: message.role === 'user' ? 'auto' : '0'
+                    padding: 12,
+                    borderRadius: 8,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    maxWidth: '90%',
+                    marginLeft: message.role === 'user' ? 'auto' : '0',
+                    border: message.role === 'prospect' && conversationPhase === 'ended' ? '2px solid #ff4444' : 'none'
                   }}>
                     <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
                       {message.role === 'user' ? 'You' : `${personaOptions.find(p => p.value === persona)?.label || 'Prospect'}`}:
@@ -632,13 +804,26 @@ export default function Home() {
               ) : (
                 <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>
                   {roleplay ? 
-                    "Enter your initial pitch in the main pitch area and click 'Start Roleplay' to begin" : 
+                    "Enter your initial pitch in the main pitch area and click 'Start Roleplay' to begin the challenge" : 
                     "No conversation yet"}
                 </div>
               )}
               {isTyping && (
                 <div style={{ padding: 10, fontStyle: 'italic', color: '#666' }}>
-                  Prospect is typing...
+                  Prospect is thinking...
+                </div>
+              )}
+              {conversationPhase === 'ended' && (
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: 15, 
+                  backgroundColor: '#ffebee', 
+                  borderRadius: 8, 
+                  marginTop: 10,
+                  border: '1px solid #ffcdd2'
+                }}>
+                  <strong>Training Session Ended</strong><br/>
+                  The prospect has made their decision. Review your performance and try again!
                 </div>
               )}
             </div>
@@ -648,7 +833,11 @@ export default function Home() {
                 value={roleplayResponse}
                 onChange={(e) => setRoleplayResponse(e.target.value)}
                 onKeyPress={handleRoleplayKeyPress}
-                placeholder={roleplayStarted ? "Type your response..." : "Start roleplay first to enable this input"}
+                placeholder={
+                  conversationPhase === 'ended' ? "Session ended - restart to try again" :
+                  roleplayStarted ? "Type your response..." : 
+                  "Start roleplay first to enable this input"
+                }
                 style={{ 
                   flex: 1, 
                   padding: 10, 
@@ -656,20 +845,20 @@ export default function Home() {
                   borderRadius: '8px 0 0 8px', 
                   resize: 'none',
                   minHeight: 60,
-                  opacity: roleplayStarted ? 1 : 0.7,
+                  opacity: (roleplayStarted && conversationPhase !== 'ended') ? 1 : 0.7,
                   boxSizing: 'border-box'
                 }}
-                disabled={!roleplayStarted || isTyping || isProcessingMessage}
+                disabled={!roleplayStarted || isTyping || isProcessingMessage || conversationPhase === 'ended'}
               />
               <button 
                 onClick={handleSendRoleplayResponse}
-                disabled={isTyping || !roleplayResponse.trim() || !roleplayStarted || isProcessingMessage}
+                disabled={isTyping || !roleplayResponse.trim() || !roleplayStarted || isProcessingMessage || conversationPhase === 'ended'}
                 style={{ 
                   borderRadius: '0 8px 8px 0',
                   border: '1px solid #ccc',
                   borderLeft: 'none',
                   padding: '0 16px',
-                  opacity: (roleplayStarted && roleplayResponse.trim() && !isTyping && !isProcessingMessage) ? 1 : 0.7
+                  opacity: (roleplayStarted && roleplayResponse.trim() && !isTyping && !isProcessingMessage && conversationPhase !== 'ended') ? 1 : 0.7
                 }}
               >
                 Send
@@ -678,7 +867,13 @@ export default function Home() {
             
             {!roleplayStarted && roleplay && (
               <div style={{ marginTop: 8, fontSize: 13, color: '#666', textAlign: 'center' }}>
-                Submit your initial pitch to start the roleplay conversation
+                Submit your initial pitch to start the challenging roleplay session
+              </div>
+            )}
+            
+            {roleplayStarted && conversationPhase !== 'ended' && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#666', textAlign: 'center' }}>
+                💡 Tip: Be specific, provide evidence, and ask qualifying questions to improve engagement
               </div>
             )}
           </div>
