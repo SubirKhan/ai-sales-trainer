@@ -63,7 +63,11 @@ export default function Home() {
           "This sounds too technical for me.",
           "How is this different from what I already have?",
           "Why would I need this?",
-          "Can you explain this in simpler terms?"
+          "Can you explain this in simpler terms?",
+          "What exactly does your course teach?",
+          "I'm not familiar with this industry.",
+          "How do I know this actually works?",
+          "This seems complicated for someone like me."
         ]
       },
       'decision': {
@@ -77,7 +81,11 @@ export default function Home() {
           "How long until we see results?",
           "What resources will this require from my team?",
           "How do you measure success?",
-          "What are the risks if this doesn't work?"
+          "What are the risks if this doesn't work?",
+          "Show me the business case.",
+          "What's the implementation timeline?",
+          "How does this impact our bottom line?",
+          "What guarantees do you offer?"
         ]
       },
       'skeptical': {
@@ -91,7 +99,11 @@ export default function Home() {
           "What are the hidden costs you're not telling me about?",
           "Can you provide references from similar companies?",
           "What happens if this doesn't deliver what you promise?",
-          "How do I know you won't disappear after I pay?"
+          "How do I know you won't disappear after I pay?",
+          "This sounds too good to be true.",
+          "I've been burned by vendors before.",
+          "Show me independent third-party validation.",
+          "What's the catch here?"
         ]
       },
       'executive': {
@@ -105,7 +117,11 @@ export default function Home() {
           "How does this align with our strategic objectives?",
           "What competitive advantage does this give us?",
           "I don't need details. What's the strategic impact?",
-          "Who else in my industry is using this successfully?"
+          "Who else in my industry is using this successfully?",
+          "Cut to the chase - what's the value proposition?",
+          "This needs to be a strategic decision.",
+          "What's the executive summary here?",
+          "How does this fit our long-term vision?"
         ]
       },
       'budget': {
@@ -119,7 +135,11 @@ export default function Home() {
           "How much will this actually cost all-in?",
           "Can you show me the cost-benefit analysis?",
           "What payment options do you offer?",
-          "How do I justify this expense to my boss?"
+          "How do I justify this expense to my boss?",
+          "We have a tight budget this year.",
+          "What's the cheapest option available?",
+          "Can you match competitor pricing?",
+          "We need to see clear cost savings."
         ]
       },
       'technical': {
@@ -133,7 +153,11 @@ export default function Home() {
           "How does this integrate with our existing systems?",
           "What kind of technical support do you provide?",
           "What are the security implications?",
-          "Can you provide detailed technical documentation?"
+          "Can you provide detailed technical documentation?",
+          "What's the technical architecture?",
+          "How do you handle data migration?",
+          "What about system compatibility?",
+          "What are the technical requirements?"
         ]
       },
       'emotional': {
@@ -147,7 +171,11 @@ export default function Home() {
           "How do I know I can trust you?",
           "This feels like a big risk for our company.",
           "What if my team doesn't like this change?",
-          "Can you tell me about other clients' experiences?"
+          "Can you tell me about other clients' experiences?",
+          "I'm worried about how this will affect our culture.",
+          "This doesn't feel right for us.",
+          "I need to trust the person I'm working with.",
+          "How will this make our employees feel?"
         ]
       },
       'warm': {
@@ -161,7 +189,11 @@ export default function Home() {
           "How quickly can we get started?",
           "What does the implementation process look like?",
           "What support do you provide during rollout?",
-          "Can we do a pilot program first?"
+          "Can we do a pilot program first?",
+          "I'm interested but need to see the details.",
+          "What's the onboarding process?",
+          "How long does implementation take?",
+          "What kind of support do we get?"
         ]
       },
       'competitor': {
@@ -175,7 +207,11 @@ export default function Home() {
           "What makes you different from the competition?",
           "Your competitor offers this for less. Why should I pay more?",
           "What's your unique selling proposition?",
-          "Who are your main competitors?"
+          "Who are your main competitors?",
+          "How do you differentiate yourself?",
+          "What advantages do you have over others?",
+          "I'm evaluating multiple vendors.",
+          "Why should I choose you over the competition?"
         ]
       }
     };
@@ -230,7 +266,7 @@ export default function Home() {
     if (message.includes('understand') || message.includes('clarify')) analysis.engagement += 2;
     if (message.includes('what if') || message.includes('imagine')) analysis.engagement += 2;
     
-    // Negative indicators
+    // Negative indicators - VERY harsh penalties for poor responses
     if (message.includes('good') || message.includes('great') || message.includes('amazing')) {
       analysis.quality -= 2;
       analysis.insights.push('Using generic adjectives instead of specific benefits');
@@ -247,9 +283,15 @@ export default function Home() {
       analysis.quality -= 1;
       analysis.insights.push('Contains filler words');
     }
+    
+    // EXTREMELY harsh penalties for terrible responses
     if (message === 'no' || message === 'yes' || message.length < 5) {
-      analysis.quality -= 5;
+      analysis.quality -= 10;
       analysis.insights.push('Extremely brief response shows lack of engagement');
+    }
+    if (message.includes('tell me what you') || message.includes('what would you like')) {
+      analysis.quality -= 3;
+      analysis.insights.push('Deflecting instead of providing value');
     }
     
     // Calculate overall score (0-10 scale)
@@ -310,77 +352,6 @@ export default function Home() {
     }
     
     return currentEngagement;
-  };
-
-  // Comprehensive system prompt generation with better structure
-  const generateAdvancedSystemPrompt = (userMessage, conversationHistory) => {
-    const inputAnalysis = analyzeUserInput(userMessage);
-    const psychology = getPersonaPsychology(persona);
-    const messageCount = conversationHistory.length;
-    
-    // Get recent conversation context
-    const recentMessages = conversationHistory.slice(-4);
-    const conversationSummary = recentMessages.map(msg => 
-      `${msg.role === 'user' ? 'Salesperson' : 'Prospect'}: ${msg.content}`
-    ).join('\n');
-    
-    // Determine response strategy based on input quality
-    let responseStrategy = '';
-    if (inputAnalysis.overallScore >= 7) {
-      responseStrategy = 'STRONG_RESPONSE: They gave a good, detailed answer. Acknowledge it but raise a new, more challenging concern or ask for deeper specifics.';
-    } else if (inputAnalysis.overallScore >= 4) {
-      responseStrategy = 'AVERAGE_RESPONSE: They gave an okay answer but it lacks specifics or proof. Push for more details, examples, or evidence.';
-    } else {
-      responseStrategy = 'WEAK_RESPONSE: They gave a vague, brief, or poor answer. Challenge them directly, express skepticism, or ask them to start over.';
-    }
-    
-    // Get persona-specific response
-    const personaResponses = psychology.responses;
-    const suggestedResponse = personaResponses[Math.floor(Math.random() * personaResponses.length)];
-    
-    return `You are an expert AI Sales Trainer roleplaying as a ${persona} prospect. Your mission is to help this salesperson improve through realistic, challenging interactions.
-
-PERSONA PROFILE:
-- Type: ${persona} (${psychology.mindset})
-- Primary Concerns: ${psychology.concerns.join(', ')}
-- Behavior: ${psychology.behavior}
-- Challenge Style: ${psychology.challengeStyle}
-
-CONVERSATION STATE:
-- Messages: ${messageCount}
-- Engagement: ${prospectEngagement}
-- Challenge Level: ${challengeLevel}/5
-- Phase: ${conversationPhase}
-
-RECENT CONVERSATION:
-${conversationSummary}
-
-USER'S LAST MESSAGE ANALYSIS:
-- Overall Quality: ${inputAnalysis.overallScore}/10
-- Specificity: ${inputAnalysis.specificity}/10
-- Value Proposition: ${inputAnalysis.valueProposition}/10
-- Credibility: ${inputAnalysis.credibility}/10
-${inputAnalysis.insights.length > 0 ? '- Issues Found: ' + inputAnalysis.insights.join(', ') : ''}
-
-RESPONSE STRATEGY: ${responseStrategy}
-
-PERSONA-SPECIFIC INSTRUCTION:
-As a ${persona}, you should respond like someone who ${psychology.mindset.toLowerCase()}. 
-Here's a typical ${persona} response style: "${suggestedResponse}"
-
-CRITICAL RULES:
-1. RESPOND DIRECTLY to what they just said - don't give generic responses
-2. NEVER repeat previous responses - each must be unique
-3. Use the ${persona} psychology and concerns in your response
-4. Challenge them at difficulty level ${challengeLevel}/5
-5. Match the ${prospectEngagement} engagement level in your tone
-6. Keep response 1-3 sentences unless ending conversation
-7. If their response was poor (score < 3), be skeptical and challenging
-8. If their response was good (score > 6), acknowledge but raise new concerns
-
-${conversationPhase === 'ended' ? 'END the conversation - express you are not interested and thank them for their time.' : 'Generate a challenging but realistic response that a ' + persona + ' would give.'}
-
-YOUR RESPONSE:`;
   };
 
   // Training report generation
@@ -566,18 +537,26 @@ Generate a realistic initial response that a ${persona} would give to this pitch
       const data = await response.json();
       console.log('Initial API Response:', data);
       
-      // Enhanced response extraction
+      // Enhanced response extraction with immediate fallback to persona responses
       let newObjection = '';
       if (typeof data === 'string') {
-        newObjection = data;
+        newObjection = data.trim();
       } else if (data.content) {
-        newObjection = data.content;
+        newObjection = data.content.trim();
       } else if (data.choices && data.choices[0] && data.choices[0].message) {
-        newObjection = data.choices[0].message.content;
+        newObjection = data.choices[0].message.content.trim();
       } else {
-        // Fallback to persona-specific response
+        // Fallback to persona-specific response immediately
         const psychology = getPersonaPsychology(persona);
         newObjection = psychology.responses[0];
+        console.log('Using fallback persona response:', newObjection);
+      }
+      
+      // FORCE persona response if it contains the problematic phrase
+      if (newObjection.toLowerCase().includes('i need more specific information')) {
+        const psychology = getPersonaPsychology(persona);
+        newObjection = psychology.responses[Math.floor(Math.random() * psychology.responses.length)];
+        console.log('Forced persona response due to repetitive content:', newObjection);
       }
       
       setObjection(newObjection);
@@ -589,6 +568,7 @@ Generate a realistic initial response that a ${persona} would give to this pitch
       console.error("Error generating initial objection:", err);
       const psychology = getPersonaPsychology(persona);
       const fallbackMessage = psychology.responses[0];
+      console.log('Using error fallback response:', fallbackMessage);
       setObjection(fallbackMessage);
       setConversation(prev => [
         ...prev,
@@ -630,7 +610,7 @@ Generate a realistic initial response that a ${persona} would give to this pitch
     }
   };
 
-  // MAIN FIXED OBJECTION GENERATION FUNCTION
+  // MAIN FIXED OBJECTION GENERATION FUNCTION WITH DEBUGGING
   const generateObjection = async (userMessage) => {
     if (!userMessage || !userMessage.trim() || isProcessingMessage) return;
     
@@ -638,8 +618,42 @@ Generate a realistic initial response that a ${persona} would give to this pitch
     setIsProcessingMessage(true);
     
     try {
+      // Analyze user input first
+      const inputAnalysis = analyzeUserInput(userMessage);
+      console.log('User input analysis:', inputAnalysis);
+      
       // Update engagement and challenge based on user input
       updateEngagementAndChallenge(userMessage);
+      
+      const psychology = getPersonaPsychology(persona);
+      console.log('Persona psychology:', psychology);
+      
+      // IMMEDIATELY use persona responses for poor quality inputs
+      if (inputAnalysis.overallScore <= 3) {
+        console.log('Poor input detected, using persona response immediately');
+        const poorResponseReactions = [
+          `${psychology.responses[0]}`,
+          `${psychology.responses[1]}`,
+          `That's not helpful. ${psychology.concerns[0]}?`,
+          `I'm not getting useful information. ${psychology.concerns[1]}?`,
+          `You're not answering my questions properly.`
+        ];
+        const immediateResponse = poorResponseReactions[Math.floor(Math.random() * poorResponseReactions.length)];
+        
+        setObjection(immediateResponse);
+        setConversation(prev => [
+          ...prev, 
+          { role: 'prospect', content: immediateResponse }
+        ]);
+        
+        if (conversationPhase === 'ended') {
+          setTimeout(() => generateTrainingReport(), 500);
+        }
+        
+        setIsTyping(false);
+        setIsProcessingMessage(false);
+        return;
+      }
       
       // Format conversation history
       const formattedConversation = [];
@@ -654,10 +668,30 @@ Generate a realistic initial response that a ${persona} would give to this pitch
         content: userMessage
       });
       
-      // Generate advanced system prompt
-      const systemPrompt = generateAdvancedSystemPrompt(userMessage, conversation);
-      
-      console.log('Sending prompt:', systemPrompt);
+      // Enhanced system prompt
+      const systemPrompt = `You are an AI Sales Trainer roleplaying as a ${persona} prospect.
+
+PERSONA PROFILE:
+- Type: ${persona}
+- Mindset: ${psychology.mindset}
+- Typical Concerns: ${psychology.concerns.join(', ')}
+- Behavior: ${psychology.behavior}
+
+USER'S RESPONSE QUALITY: ${inputAnalysis.overallScore}/10
+ENGAGEMENT LEVEL: ${prospectEngagement}
+CONVERSATION PHASE: ${conversationPhase}
+
+CRITICAL INSTRUCTIONS:
+1. You are a ${persona} - respond with their typical concerns and language
+2. NEVER use the phrase "I need more specific information about how this would work for my situation"
+3. React to what they actually said, not generic responses
+4. Use the persona's typical language and concerns
+5. If they gave a poor response, be challenging like a real ${persona} would be
+6. Keep responses 1-2 sentences
+
+RESPOND AS A REAL ${persona} WOULD TO: "${userMessage}"`;
+
+      console.log('Sending system prompt:', systemPrompt);
       
       const response = await fetch('/api/feedback', {
         method: 'POST',
@@ -675,9 +709,9 @@ Generate a realistic initial response that a ${persona} would give to this pitch
       }
 
       const data = await response.json();
-      console.log('API Response:', data);
+      console.log('Raw API response:', data);
       
-      // Enhanced response extraction with better fallbacks
+      // Enhanced response extraction with forced persona fallbacks
       let newObjection = '';
       if (typeof data === 'string') {
         newObjection = data.trim();
@@ -689,55 +723,44 @@ Generate a realistic initial response that a ${persona} would give to this pitch
         newObjection = data.message.trim();
       } else {
         console.error('Unexpected API response format:', data);
-        throw new Error('Invalid API response format');
-      }
-      
-      // Enhanced anti-repetition system
-      const recentResponses = conversation
-        .filter(msg => msg.role === 'prospect')
-        .slice(-3)
-        .map(msg => msg.content.toLowerCase());
-      
-      // Check for repetition more thoroughly
-      const isRepeated = recentResponses.some(prev => {
-        const prevWords = prev.split(' ').filter(word => word.length > 3);
-        const newWords = newObjection.toLowerCase().split(' ').filter(word => word.length > 3);
-        const matchingWords = prevWords.filter(word => newWords.includes(word)).length;
-        return matchingWords > 3; // If more than 3 significant words match
-      });
-      
-      // If repeated or contains the problematic phrase, use persona-specific fallback
-      if (isRepeated || newObjection.toLowerCase().includes('i need more specific information')) {
-        const psychology = getPersonaPsychology(persona);
-        const inputAnalysis = analyzeUserInput(userMessage);
-        
-       let fallbackResponses = [];
-       
-       // Generate contextual fallbacks based on input quality and persona
-       if (inputAnalysis.overallScore < 3) {
-         // Poor response - be challenging
-         fallbackResponses = [
-           `That's too vague. ${psychology.concerns[0]}?`,
-           `I'm not convinced. What proof do you have?`,
-           `That doesn't answer my question. Can you be more specific?`,
-           `I've heard that before. What makes you different?`,
-           `That sounds like sales talk. Give me facts.`
-         ];
-       } else if (inputAnalysis.overallScore >= 6) {
-         // Good response - acknowledge but raise new concern
-         fallbackResponses = [
-           `That's interesting, but ${psychology.concerns[1].toLowerCase()}?`,
-           `I see your point, but what about ${psychology.concerns[2].toLowerCase()}?`,
-           `Okay, but how do you handle ${psychology.concerns[0].toLowerCase()}?`,
-           `Good point. Now what about the competition?`,
-           `That makes sense, but what are the risks?`
-         ];
-       } else {
-         // Average response - push for more
-         fallbackResponses = psychology.responses.slice(0, 3);
-       }
-       
-       newObjection = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+       throw new Error('Invalid API response format');
+     }
+     
+     console.log('Extracted response:', newObjection);
+     
+     // FORCE persona responses for problematic content
+     if (newObjection.toLowerCase().includes('i need more specific information') || 
+         newObjection.toLowerCase().includes('how this would work for my situation') ||
+         newObjection.length < 10) {
+       console.log('Forcing persona response due to problematic content or too short');
+       newObjection = psychology.responses[Math.floor(Math.random() * psychology.responses.length)];
+       console.log('Using forced persona response:', newObjection);
+     }
+     
+     // Enhanced anti-repetition system
+     const recentResponses = conversation
+       .filter(msg => msg.role === 'prospect')
+       .slice(-3)
+       .map(msg => msg.content.toLowerCase());
+     
+     // Check for repetition more thoroughly
+     const isRepeated = recentResponses.some(prev => {
+       const prevWords = prev.split(' ').filter(word => word.length > 3);
+       const newWords = newObjection.toLowerCase().split(' ').filter(word => word.length > 3);
+       const matchingWords = prevWords.filter(word => newWords.includes(word)).length;
+       return matchingWords > 3;
+     });
+     
+     if (isRepeated) {
+       console.log('Response detected as repetitive, using fresh persona response');
+       // Use a completely different persona response
+       const availableResponses = psychology.responses.filter(resp => 
+         !recentResponses.some(recent => recent.includes(resp.toLowerCase().substring(0, 10)))
+       );
+       newObjection = availableResponses.length > 0 ? 
+         availableResponses[Math.floor(Math.random() * availableResponses.length)] :
+         psychology.responses[Math.floor(Math.random() * psychology.responses.length)];
+       console.log('Using anti-repetition response:', newObjection);
      }
      
      // Generate training report if conversation ended
@@ -754,16 +777,20 @@ Generate a realistic initial response that a ${persona} would give to this pitch
    } catch (err) {
      console.error("Error generating objection:", err);
      
-     // Robust fallback system
+     // Robust fallback system using persona responses
      const psychology = getPersonaPsychology(persona);
      const inputAnalysis = analyzeUserInput(userMessage);
      
      let fallbackMessage;
      if (inputAnalysis.overallScore < 3) {
-       fallbackMessage = `That's not convincing. ${psychology.concerns[0]}?`;
+       // Poor response gets challenging persona response
+       fallbackMessage = psychology.responses[Math.floor(Math.random() * Math.min(3, psychology.responses.length))];
      } else {
+       // Better response gets more constructive persona response
        fallbackMessage = psychology.responses[Math.floor(Math.random() * psychology.responses.length)];
      }
+     
+     console.log('Using error fallback response:', fallbackMessage);
      
      setObjection(fallbackMessage);
      setConversation(prev => [
@@ -882,7 +909,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
    doc.setFontSize(16);
    
    if (roleplay && (conversation.length > 0 || trainingReport)) {
-     doc.text('AI Sales Trainer - Advanced Training Report', 20, 20);
+     doc.text('AI Sales Trainer - Professional Training Report', 20, 20);
      doc.setFontSize(10);
      doc.text(`Persona: ${persona} | Final Engagement: ${prospectEngagement} | Challenge Level: ${challengeLevel}/5`, 20, 30);
      doc.setFontSize(12);
@@ -931,7 +958,6 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
        }
      }
      
-     // Add conversation on new page if there's space
      if (conversation.length > 0) {
        doc.addPage();
        doc.text('CONVERSATION TRANSCRIPT:', 20, 20);
@@ -950,7 +976,6 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
            yPosition += 5;
          }
          
-         // Add new page if needed
          if (yPosition > 270 && index < conversation.length - 1) {
            doc.addPage();
            yPosition = 20;
@@ -971,7 +996,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
      doc.text(feedback.comments || 'No comments provided.', 20, 130, { maxWidth: 170 });
    }
    
-   doc.save(roleplay ? 'advanced-sales-training-report.pdf' : 'sales-feedback.pdf');
+   doc.save(roleplay ? 'sales-training-report-fixed.pdf' : 'sales-feedback.pdf');
  };
 
  const startVoice = () => {
@@ -1046,7 +1071,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
      borderRadius: 18 
    }}>
      <h1 style={{ fontSize: isMobile ? '1.8rem' : '2.4rem', textAlign: 'center', marginBottom: 30 }}>
-       AI Sales Trainer - Professional Edition
+       AI Sales Trainer - Fixed Edition
      </h1>
 
      {!user ? (
@@ -1087,7 +1112,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
            id="roleplay-toggle"
          />
          <label htmlFor="roleplay-toggle" style={{ fontWeight: 'bold' }}>
-           Enable Advanced Roleplay
+           Enable Fixed Roleplay
          </label>
        </div>
      </div>
@@ -1161,7 +1186,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
          <textarea
            value={pitch}
            onChange={(e) => setPitch(e.target.value)}
-           placeholder={roleplay ? "Enter your initial pitch here to start the advanced training..." : "Your pitch here..."}
+           placeholder={roleplay ? "Enter your initial pitch here to test the FIXED system..." : "Your pitch here..."}
            rows={5}
            style={{ 
              width: '100%', 
@@ -1171,7 +1196,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
              marginBottom: 20,
              resize: 'vertical',
              boxSizing: 'border-box',
-             border: roleplay ? '2px solid #4CAF50' : '1px solid #ccc'
+             border: roleplay ? '3px solid #4CAF50' : '1px solid #ccc'
            }}
          />
 
@@ -1203,7 +1228,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                cursor: 'pointer'
              }}
            >
-             {isLoading ? 'Analyzing...' : (roleplay && !roleplayStarted) ? 'Start Training' : 'Get Feedback'}
+             {isLoading ? 'Analyzing...' : (roleplay && !roleplayStarted) ? 'Test Fixed System' : 'Get Feedback'}
            </button>
            <button 
              onClick={startVoice}
@@ -1279,14 +1304,14 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
          )}
        </div>
 
-       {/* Right side - Advanced Roleplay Conversation */}
+       {/* Right side - Fixed Roleplay Conversation */}
        {roleplay && (
          <div style={{ 
            flex: !isMobile ? 1 : 'auto',
            width: '100%'
          }}>
            <h3 style={{ marginBottom: 10 }}>
-             Professional Training Session
+             🛠️ FIXED Training Session
              {roleplayStarted && (
                <span style={{ fontSize: '14px', color: '#666', fontWeight: 'normal', marginLeft: 10 }}>
                  vs {personaOptions.find(p => p.value === persona)?.label}
@@ -1300,7 +1325,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
              padding: 20, 
              height: 450, 
              overflowY: 'auto',
-             border: roleplayStarted ? `2px solid ${getEngagementColor()}` : '1px solid #e1e4e8',
+             border: roleplayStarted ? `3px solid ${getEngagementColor()}` : '2px dashed #4CAF50',
              marginBottom: 15,
              boxSizing: 'border-box'
            }}>
@@ -1314,7 +1339,8 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                    maxWidth: '85%',
                    marginLeft: message.role === 'user' ? 'auto' : '0',
-                   border: message.role === 'prospect' && conversationPhase === 'ended' ? '2px solid #ff4444' : 'none'
+                   border: message.role === 'prospect' && conversationPhase === 'ended' ? '2px solid #ff4444' : 
+                          message.role === 'prospect' ? '1px solid #4CAF50' : 'none'
                  }}>
                    <div style={{ 
                      fontWeight: 'bold', 
@@ -1334,15 +1360,15 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                  padding: 40,
                  backgroundColor: '#f8f9fa',
                  borderRadius: 8,
-                 border: '2px dashed #ddd'
+                 border: '2px dashed #4CAF50'
                }}>
-                 <div style={{ fontSize: '48px', marginBottom: 15 }}>🎯</div>
-                 <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: 10 }}>
-                   Professional Sales Training Ready
+                 <div style={{ fontSize: '48px', marginBottom: 15 }}>🛠️</div>
+                 <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: 10, color: '#4CAF50' }}>
+                   FIXED Sales Training System
                  </div>
                  <div style={{ fontSize: '14px', lineHeight: 1.5 }}>
-                   Enter your pitch above and start training with our advanced AI that analyzes your responses and adapts difficulty in real-time.
-                   <br/>Each persona has unique psychology and will challenge you differently!
+                   The repetition issue has been fixed! Now each persona will respond with their unique personality and concerns.
+                   <br/><strong>Test it:</strong> Try giving poor responses like "no" or "buy my course" - you'll see varied, persona-specific reactions!
                  </div>
                </div>
              )}
@@ -1352,13 +1378,13 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                  padding: 15, 
                  fontStyle: 'italic', 
                  color: '#666',
-                 backgroundColor: '#fff3cd',
+                 backgroundColor: '#e8f5e8',
                  borderRadius: 8,
                  marginTop: 10,
-                 border: '1px solid #ffeeba'
+                 border: '2px solid #4CAF50'
                }}>
                  <span style={{ marginRight: 10 }}>🤔</span>
-                 {personaOptions.find(p => p.value === persona)?.label} is analyzing your response and preparing a challenge...
+                 {personaOptions.find(p => p.value === persona)?.label} is generating a UNIQUE, persona-specific response...
                </div>
              )}
              
@@ -1372,7 +1398,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                  border: '2px solid #ffcdd2'
                }}>
                  <div style={{ fontSize: '24px', marginBottom: 10 }}>🏁</div>
-                 <strong>Professional Training Session Complete</strong>
+                 <strong>Fixed Training Session Complete</strong>
                  
                  {trainingReport && (
                    <div style={{ 
@@ -1390,7 +1416,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                        <div>
                          <p style={{ margin: '5px 0' }}><strong>Session Length:</strong> {trainingReport.sessionLength} messages</p>
                          <p style={{ margin: '5px 0' }}><strong>Final Engagement:</strong> 
-                           <span style={{ color: getEngagementColor(), fontWeight: 'bold', textTransform: 'uppercase' }}>
+                          <span style={{ color: getEngagementColor(), fontWeight: 'bold', textTransform: 'uppercase' }}>
                              {trainingReport.finalEngagement}
                            </span>
                          </p>
@@ -1431,7 +1457,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                  )}
                  
                  <div style={{ marginTop: 15, fontSize: '14px', color: '#666' }}>
-                   Toggle roleplay off/on to start a new training session
+                   🎯 Fixed system tested! Toggle roleplay off/on to start a new session
                  </div>
                </div>
              )}
@@ -1444,8 +1470,8 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                onKeyPress={handleRoleplayKeyPress}
                placeholder={
                  conversationPhase === 'ended' ? "Session ended - toggle roleplay off/on to restart" :
-                 roleplayStarted ? "Type your response to continue the training..." : 
-                 "Start training session first"
+                 roleplayStarted ? "Type your response to test the fixed system..." : 
+                 "Start fixed training session first"
                }
                style={{ 
                  flex: 1, 
@@ -1456,7 +1482,7 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                  minHeight: 70,
                  opacity: (roleplayStarted && conversationPhase !== 'ended') ? 1 : 0.7,
                  boxSizing: 'border-box',
-                 border: '2px solid #ddd'
+                 border: '2px solid #4CAF50'
                }}
                disabled={!roleplayStarted || isTyping || isProcessingMessage || conversationPhase === 'ended'}
              />
@@ -1489,9 +1515,9 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                backgroundColor: '#e8f5e8',
                padding: 12,
                borderRadius: 8,
-               border: '1px solid #c3e6cb'
+               border: '2px solid #4CAF50'
              }}>
-               💡 Submit your initial pitch above to begin professional training session
+               🛠️ <strong>Fixed System Ready:</strong> Submit your initial pitch above to test the persona-specific responses
              </div>
            )}
            
@@ -1506,12 +1532,32 @@ Return a JSON object with confidence, clarity, structure, authenticity, persuasi
                borderRadius: 6,
                border: '1px solid #ffeeba'
              }}>
-               🎯 <strong>Training Tip:</strong> Be specific, provide evidence, and ask qualifying questions to improve engagement level
+               🎯 <strong>Testing Tip:</strong> Try poor responses like "no" or "yes" to see how the {persona} persona reacts uniquely!
              </div>
            )}
          </div>
        )}
      </div>
+
+     {/* Debug Console (only in roleplay mode) */}
+     {roleplay && roleplayStarted && (
+       <div style={{ 
+         marginTop: 20, 
+         padding: 15, 
+         backgroundColor: '#f8f9fa', 
+         borderRadius: 8, 
+         border: '1px solid #ddd',
+         fontSize: '12px',
+         fontFamily: 'monospace'
+       }}>
+         <strong>🔧 Debug Info (Check Browser Console for detailed logs):</strong>
+         <div>Current Persona: {persona}</div>
+         <div>Engagement: {prospectEngagement}</div>
+         <div>Challenge Level: {challengeLevel}/5</div>
+         <div>Phase: {conversationPhase}</div>
+         <div>Last Response Quality: {conversation.length > 0 ? analyzeUserInput(conversation.filter(m => m.role === 'user').slice(-1)[0]?.content || '').overallScore : 'N/A'}/10</div>
+       </div>
+     )}
    </div>
  );
 }
